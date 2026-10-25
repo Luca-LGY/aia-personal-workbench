@@ -6,3 +6,4 @@ export type PublicConnectionConfig={id:'webdav';url:string;username:string}|{id:
 export type ConfigureConnection=PublicConnectionConfig&{secret?:string}
 export interface EndpointState {id:EndpointId;enabled:boolean;config:PublicConnectionConfig|null;credentialStored:boolean;status:'not_configured'|'configured'|'verified'|'error'|'disabled';verifiedAt:string|null;capabilities?:CapabilityReport;github?:{private:boolean;writable:boolean;head:string};error?:string;revision:number}
 export interface ConnectionState {schemaVersion:1;endpoints:Record<EndpointId,EndpointState>}
+export interface CloudInspection {id:EndpointId;complete:boolean;rootExists:boolean;fileCount:number;revision:string;warnings:string[];readAt:string}

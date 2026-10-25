@@ -5,7 +5,7 @@ import type { CapturePreview,CaptureReceipt } from './capture'
 import type { ScheduleInput,PlanStatus } from './plans'
 import type { GarminOverview,GarminActivity,GarminWorkout } from './garmin'
 import type { HomeOverview,AdvicePreview,AdoptAdvice } from './reports'
-import type { ConfigureConnection,ConnectionState,EndpointId } from './connections'
+import type { ConfigureConnection,ConnectionState,EndpointId,CloudInspection } from './connections'
 export interface RuntimeInfo {archiveRoot:string;stateRoot:string;sqliteReady:boolean;now:string}
 export interface RecordView {record:RecordEnvelope;path:string;hash:string}
 export interface AiaAPI {
@@ -22,7 +22,7 @@ export interface AiaAPI {
  development:{saveProject(input:SaveRecord):Promise<RecordEnvelope>;saveIssue(input:SaveRecord):Promise<RecordEnvelope>;saveVersion(input:SaveRecord):Promise<RecordEnvelope>;openRepo(projectId:string):Promise<void>}
  garmin:{overview(date:string):Promise<GarminOverview>;activities(range?:{from?:string;through?:string}):Promise<GarminActivity[]>;trainingPlan(date:string):Promise<GarminWorkout[]>}
  reports:{overview(date:string):Promise<HomeOverview>;buildWeekly(date:string):Promise<RecordEnvelope>;training(date:string):Promise<AdvicePreview[]>;adopt(input:AdoptAdvice):Promise<{adviceId:string;planId:string|null}>}
- connections:{getState():Promise<ConnectionState>;configure(input:ConfigureConnection):Promise<ConnectionState>;setEnabled(id:EndpointId,enabled:boolean):Promise<ConnectionState>;test(id:EndpointId):Promise<ConnectionState>;export():Promise<ConnectionState>;exportFile():Promise<boolean>;onChange(listener:()=>void):()=>void}
+ connections:{getState():Promise<ConnectionState>;configure(input:ConfigureConnection):Promise<ConnectionState>;setEnabled(id:EndpointId,enabled:boolean):Promise<ConnectionState>;test(id:EndpointId):Promise<ConnectionState>;inspect(id:EndpointId):Promise<CloudInspection>;export():Promise<ConnectionState>;exportFile():Promise<boolean>;onChange(listener:()=>void):()=>void}
  search:{query(input:SearchQuery):Promise<SearchPage>;rebuild():Promise<IndexReport>}
  sources:{resolve(id:string):Promise<{path:string;exists:boolean;changed:boolean;hash:string|null}>;open(id:string):Promise<void>;recordForPath(path:string):Promise<string|null>}
  onChange(listener:(change:ArchiveChange)=>void):()=>void

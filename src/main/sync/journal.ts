@@ -6,6 +6,7 @@ import type { EndpointBaseline, EndpointReceipt, SyncConflict, SyncPlan, Version
 import { atomicWrite, readMaybe } from '../archive/transactions'
 import { digest, contentHash, isAncestor } from './graph'
 import { safePath } from '../archive/paths'
+import { ingestObject } from './streams'
 type StoredPlan = Omit<SyncPlan, 'objects' | 'graph'>
 export interface JournalOperation { operationId: string; endpointId: ChangeBatch['endpointId']; namespace: string; path: string; status: 'pending' | 'outcome_unknown' | 'confirmed' | 'conflict' | 'failed'; receipt?: EndpointReceipt['items'][number];historical?:boolean }
 export interface JournalRun { id: string; plan: StoredPlan; phase: 'prepared' | 'local_applied' | 'complete' | 'superseded'; operations: JournalOperation[]; createdAt: string }
@@ -36,6 +37,8 @@ export class SyncJournal {
     this.integrity.set(hash,before)
   }
   async objectPath(hash:string){await this.verifyObject(hash);return this.objectLocation(hash)}
+  async hasObject(hash:string){try{return(await stat(await this.objectLocation(hash))).isFile()}catch{return false}}
+  async ingest(source:AsyncIterable<Uint8Array>,expectedHash?:string){const result=await ingestObject(this.root,source,expectedHash);this.integrity.delete(result.hash);return result}
   async object(hash: string) { await this.verifyObject(hash);const bytes = await readMaybe(await this.objectLocation(hash)); if (!bytes || digest(bytes) !== hash){this.integrity.delete(hash);throw Error('MISSING_OR_CORRUPT_OBJECT: ' + hash)}return bytes }
   prepare(plan: SyncPlan) { return this.queue(async () => {
     if (plan.archiveId !== this.archiveId) throw Error('Wrong archive')
