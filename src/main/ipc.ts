@@ -6,8 +6,8 @@ import type { Services } from './services'
 export function registerIPC(s:Services){
  const handle=(channel:string,fn:(...args:unknown[])=>unknown)=>ipcMain.handle(channel,(e:IpcMainInvokeEvent,...args:unknown[])=>{if(!BrowserWindow.fromWebContents(e.sender)||e.senderFrame!==e.sender.mainFrame)throw Error('Unauthorized IPC sender');return fn(...args)})
  const id=z.uuid(),hash=z.string().regex(/^[a-f0-9]{64}$/)
- handle('records:list',async f=>{const filter=z.object({module:z.enum(MODULES).optional(),kind:z.enum(KINDS).optional(),date:z.iso.date().optional(),role:z.enum(['actual','plan','reference','template','analysis','suggestion']).optional()}).parse(f??{}) as RecordFilter;const records=await s.repository.list(filter);return Promise.all(records.map(r=>s.repository.version(r.id)))})
- handle('records:get',i=>s.repository.version(id.parse(i)))
+ handle('records:list',async f=>{const filter=z.object({module:z.enum(MODULES).optional(),kind:z.enum(KINDS).optional(),date:z.iso.date().optional(),role:z.enum(['actual','plan','reference','template','analysis','suggestion']).optional()}).parse(f??{}) as RecordFilter;return(await s.importer.scan()).views.filter(({record:r})=>(!filter.module||r.module===filter.module)&&(!filter.kind||r.kind===filter.kind)&&(!filter.date||r.date===filter.date)&&(!filter.role||r.role===filter.role))})
+ handle('records:get',async i=>{const value=id.parse(i);return(await s.importer.scan()).views.find(v=>v.record.id===value)??null})
  handle('records:save',input=>s.repository.save(z.object({record:RecordSchema,expectedHash:hash.nullable()}).parse(input)))
  handle('records:remove',(i,h)=>s.repository.remove(id.parse(i),hash.parse(h)))
  handle('records:restore',i=>s.repository.restoreDeleted(id.parse(i)))

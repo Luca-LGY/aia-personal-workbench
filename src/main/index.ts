@@ -23,4 +23,5 @@ if(process.env.ELECTRON_RENDERER_URL)await win.loadURL(process.env.ELECTRON_REND
 else await win.loadFile(join(dir,'../renderer/index.html'))
 app.on('window-all-closed',()=>app.quit())
 app.on('will-quit',()=>db.close())
+app.on('before-quit',()=>{void services.stopWatcher()})
 })

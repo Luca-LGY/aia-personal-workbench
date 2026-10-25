@@ -1,7 +1,11 @@
 import { ArchiveRepository } from './archive/repository'
 import { AttachmentStore,DraftStore } from './archive/attachments'
+import { LegacyImporter } from './archive/importer'
+import { watchArchive } from './archive/watcher'
 export async function createServices(archiveRoot:string,stateRoot:string){
  const repository=new ArchiveRepository(archiveRoot,stateRoot);await repository.open()
- return {repository,attachments:new AttachmentStore(archiveRoot,stateRoot),drafts:new DraftStore(stateRoot)}
+ const importer=new LegacyImporter(archiveRoot,stateRoot);await importer.scan()
+ const stopWatcher=await watchArchive(archiveRoot,paths=>{repository.notifyExternal(paths).catch(e=>console.error('Archive change could not be indexed:',e instanceof Error?e.message:String(e)))})
+ return {repository,importer,stopWatcher,attachments:new AttachmentStore(archiveRoot,stateRoot),drafts:new DraftStore(stateRoot)}
 }
 export type Services=Awaited<ReturnType<typeof createServices>>
