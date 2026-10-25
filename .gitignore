@@ -1,0 +1,12 @@
+.tooling/
+node_modules/
+out/
+dist/
+test-results/
+playwright-report/
+.superpowers/
+.aia-test/
+.DS_Store
+*.log
+.env*
+!.env.example
