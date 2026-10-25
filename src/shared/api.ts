@@ -3,6 +3,7 @@ import type { SaveRecord,RecordFilter,DeletionReceipt,AttachmentRef,ArchiveChang
 import type { SearchQuery,SearchPage,IndexReport } from './search'
 import type { CapturePreview,CaptureReceipt } from './capture'
 import type { ScheduleInput,PlanStatus } from './plans'
+import type { GarminOverview,GarminActivity,GarminWorkout } from './garmin'
 export interface RuntimeInfo {archiveRoot:string;stateRoot:string;sqliteReady:boolean;now:string}
 export interface RecordView {record:RecordEnvelope;path:string;hash:string}
 export interface AiaAPI {
@@ -17,8 +18,9 @@ export interface AiaAPI {
  diet:{listDay(date:string):Promise<RecordEnvelope[]>;saveMeal(input:SaveRecord):Promise<RecordEnvelope>}
  games:{saveGame(input:SaveRecord):Promise<RecordEnvelope>;saveSession(input:SaveRecord):Promise<RecordEnvelope>;listSessions(gameId:string):Promise<RecordEnvelope[]>}
  development:{saveProject(input:SaveRecord):Promise<RecordEnvelope>;saveIssue(input:SaveRecord):Promise<RecordEnvelope>;saveVersion(input:SaveRecord):Promise<RecordEnvelope>;openRepo(projectId:string):Promise<void>}
+ garmin:{overview(date:string):Promise<GarminOverview>;activities(range?:{from?:string;through?:string}):Promise<GarminActivity[]>;trainingPlan(date:string):Promise<GarminWorkout[]>}
  search:{query(input:SearchQuery):Promise<SearchPage>;rebuild():Promise<IndexReport>}
- sources:{resolve(id:string):Promise<{path:string;exists:boolean;changed:boolean;hash:string|null}>;open(id:string):Promise<void>}
+ sources:{resolve(id:string):Promise<{path:string;exists:boolean;changed:boolean;hash:string|null}>;open(id:string):Promise<void>;recordForPath(path:string):Promise<string|null>}
  onChange(listener:(change:ArchiveChange)=>void):()=>void
 }
 declare global {interface Window {aia:AiaAPI}}

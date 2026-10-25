@@ -196,3 +196,23 @@
 ## 本次完整性边界
 
 以上是当前日目录与指定索引／计划／状态的去值结构审计。未读取其他日期 JSON 正文，未运行任何采集、同步或迁移入口。T15 的自动化测试应从这些字段定义创建合成样例，不把真实健康数据复制进工程或测试夹具。
+
+## T15 元数据类型与已观察枚举补充
+
+补充观测时间：2026-10-25T23:15:58+08:00。本节按追加授权列出采集元数据的实际状态／单位／时区字符串；不列健康数据、个人正文或任何原始数据条目。
+
+| 字段 | `数据/2026-10-25/佳明快照.json` | `数据/2026-10-25/周度复盘快照_210550.json` |
+| --- | --- | --- |
+| `collection_status` | `string`：`data_collection_success` | `string`：`all_36_read_requests_succeeded_with_documented_coverage_limits` |
+| `unit_system` | `string`：`metric` | `string`：`metric` |
+| `timezone` | `string`：`Asia/Shanghai` | `string`：`Asia/Shanghai` |
+| `recorded_at` | `string`，ISO 8601 日期时间，含毫秒及时区偏移 | 缺省（字段不存在） |
+| `collection_window` | `object`；`started_at: string`、`completed_at: string`，均为含毫秒及时区偏移的 ISO 8601 日期时间 | `object`；`started_at: string`、`completed_at: string`，均为含毫秒及时区偏移的 ISO 8601 日期时间 |
+| `daily_stats` | `array<object>` | `array<object>` |
+| `sleep` | `array<object>` | `array<object>` |
+| `training_readiness` | `array<object>` | `array<object>` |
+| `training_status` | `object` | `object` |
+
+这些状态字符串是两份当前样本中观察到的值，并非穷举的上游协议枚举。周度成功状态还明确带有 coverage limits，不能仅凭成功状态就去掉局部覆盖限制。`unit_system` 在这两份样本中均是字符串，不是单位映射对象。
+
+`recorded_at` 在当前每日样本存在，而周度样本中字段不存在；不要将不存在改写为采集失败，也不要用文件修改时间补成同义记录时间。`collection_window` 不是数组；四个指定健康数据容器中仅 `training_status` 为单对象，其余均为对象数组。日期时间的真实值未在此补充表中复制。

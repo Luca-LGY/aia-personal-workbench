@@ -1,0 +1,15 @@
+{
+  "schema_version": 1, "archive_date": "2026-10-25", "timezone": "Asia/Shanghai", "sources": ["synthetic-test"],
+  "collection_status": "data_collection_success", "recorded_at": "2026-10-25T08:00:00+08:00", "unit_system": "metric",
+  "collection_window": {"started_at":"2026-10-25T07:59:00+08:00","completed_at":"2026-10-25T08:00:00+08:00"},
+  "current_day_stats": {"date":"2026-10-25","total_steps":1234,"collected_at":"2026-10-25T08:00:00+08:00","is_partial":true},
+  "daily_stats": [{"date":"2026-10-24","total_steps":6000,"resting_heart_rate_bpm":60,"collected_at":"2026-10-25T08:00:00+08:00"}],
+  "sleep": [{"date":"2026-10-25","sleep_hours":7,"collected_at":"2026-10-25T08:00:00+08:00"}],
+  "training_readiness": [{"date":"2026-10-24","score":65,"recovery_time_hours":12,"timestamp":"2026-10-24T09:00:00"}],
+  "training_readiness_collected_at":"2026-10-24T09:05:00+08:00",
+  "training_status":{"date":"2026-10-24","training_status_feedback":"合成测试状态","collected_at":"2026-10-24T09:00:00+08:00"},
+  "activities_in_lookback":[{"id":9001,"name":"合成晨跑","type":"running","start_time":"2026-10-24T07:00:00+08:00","duration_seconds":1800,"distance_meters":5000}],
+  "activity_delta":{"new_activity_count":0},
+  "coach_schedule":{"date":"2026-10-25","collected_at":"2026-10-25T08:00:00+08:00","workouts":[{"date":"2026-10-25","workout_uuid":"synthetic-workout","name":"合成轻松跑","estimated_duration_seconds":1200,"completed":false}]},
+  "quality_flags":["合成样例：当日步数为部分累计"]
+}

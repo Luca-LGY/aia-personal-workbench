@@ -7,13 +7,14 @@ const api:AiaAPI={
  attachments:{choose:()=>ipcRenderer.invoke('attachments:choose'),resolve:id=>ipcRenderer.invoke('attachments:resolve',id),open:id=>ipcRenderer.invoke('attachments:open',id)},
  capture:{preview:(text,attachmentIds)=>ipcRenderer.invoke('capture:preview',text,attachmentIds),commit:p=>ipcRenderer.invoke('capture:commit',p),undo:id=>ipcRenderer.invoke('capture:undo',id)},
  plans:{schedule:p=>ipcRenderer.invoke('plans:schedule',p),listDay:date=>ipcRenderer.invoke('plans:listDay',date),setStatus:(id,status,hash)=>ipcRenderer.invoke('plans:setStatus',id,status,hash),reschedule:(id,date,hash)=>ipcRenderer.invoke('plans:reschedule',id,date,hash)},
+ garmin:{overview:date=>ipcRenderer.invoke('garmin:overview',date),activities:range=>ipcRenderer.invoke('garmin:activities',range),trainingPlan:date=>ipcRenderer.invoke('garmin:trainingPlan',date)},
  development:{saveProject:p=>ipcRenderer.invoke('development:saveProject',p),saveIssue:p=>ipcRenderer.invoke('development:saveIssue',p),saveVersion:p=>ipcRenderer.invoke('development:saveVersion',p),openRepo:id=>ipcRenderer.invoke('development:openRepo',id)},
  games:{saveGame:p=>ipcRenderer.invoke('games:saveGame',p),saveSession:p=>ipcRenderer.invoke('games:saveSession',p),listSessions:id=>ipcRenderer.invoke('games:listSessions',id)},
  diet:{listDay:date=>ipcRenderer.invoke('diet:listDay',date),saveMeal:p=>ipcRenderer.invoke('diet:saveMeal',p)},
  research:{listProjects:()=>ipcRenderer.invoke('research:listProjects'),getProject:id=>ipcRenderer.invoke('research:getProject',id),saveProject:p=>ipcRenderer.invoke('research:saveProject',p),saveExperiment:p=>ipcRenderer.invoke('research:saveExperiment',p)},
  learning:{listSubjects:()=>ipcRenderer.invoke('learning:listSubjects'),getSubject:id=>ipcRenderer.invoke('learning:getSubject',id),saveSubject:p=>ipcRenderer.invoke('learning:saveSubject',p),saveNote:p=>ipcRenderer.invoke('learning:saveNote',p)},
  search:{query:input=>ipcRenderer.invoke('search:query',input),rebuild:()=>ipcRenderer.invoke('search:rebuild')},
- sources:{resolve:id=>ipcRenderer.invoke('sources:resolve',id),open:id=>ipcRenderer.invoke('sources:open',id)},
+ sources:{recordForPath:path=>ipcRenderer.invoke('sources:recordForPath',path),resolve:id=>ipcRenderer.invoke('sources:resolve',id),open:id=>ipcRenderer.invoke('sources:open',id)},
  onChange:listener=>{const f=(_event:unknown,change:Parameters<typeof listener>[0])=>listener(change);ipcRenderer.on('archive:change',f);return()=>{ipcRenderer.removeListener('archive:change',f)}}
 }
 contextBridge.exposeInMainWorld('aia',api)
