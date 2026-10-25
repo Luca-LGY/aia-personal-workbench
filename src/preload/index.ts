@@ -7,6 +7,7 @@ const api:AiaAPI={
  attachments:{choose:()=>ipcRenderer.invoke('attachments:choose'),resolve:id=>ipcRenderer.invoke('attachments:resolve',id),open:id=>ipcRenderer.invoke('attachments:open',id)},
  capture:{preview:(text,attachmentIds)=>ipcRenderer.invoke('capture:preview',text,attachmentIds),commit:p=>ipcRenderer.invoke('capture:commit',p),undo:id=>ipcRenderer.invoke('capture:undo',id)},
  plans:{schedule:p=>ipcRenderer.invoke('plans:schedule',p),listDay:date=>ipcRenderer.invoke('plans:listDay',date),setStatus:(id,status,hash)=>ipcRenderer.invoke('plans:setStatus',id,status,hash),reschedule:(id,date,hash)=>ipcRenderer.invoke('plans:reschedule',id,date,hash)},
+ games:{saveGame:p=>ipcRenderer.invoke('games:saveGame',p),saveSession:p=>ipcRenderer.invoke('games:saveSession',p),listSessions:id=>ipcRenderer.invoke('games:listSessions',id)},
  diet:{listDay:date=>ipcRenderer.invoke('diet:listDay',date),saveMeal:p=>ipcRenderer.invoke('diet:saveMeal',p)},
  research:{listProjects:()=>ipcRenderer.invoke('research:listProjects'),getProject:id=>ipcRenderer.invoke('research:getProject',id),saveProject:p=>ipcRenderer.invoke('research:saveProject',p),saveExperiment:p=>ipcRenderer.invoke('research:saveExperiment',p)},
  learning:{listSubjects:()=>ipcRenderer.invoke('learning:listSubjects'),getSubject:id=>ipcRenderer.invoke('learning:getSubject',id),saveSubject:p=>ipcRenderer.invoke('learning:saveSubject',p),saveNote:p=>ipcRenderer.invoke('learning:saveNote',p)},
