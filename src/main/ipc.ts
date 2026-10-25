@@ -6,10 +6,15 @@ import type { Services } from './services'
 import { SearchQuerySchema } from './indexing/query'
 import { CapturePreviewSchema } from '../shared/capture'
 import { ScheduleSchema } from '../shared/plans'
+import { AdoptAdviceSchema } from './reports/training'
 export function registerIPC(s:Services,options:{captureReplyDelayMs?:number}={}){
  const handle=(channel:string,fn:(...args:unknown[])=>unknown)=>ipcMain.handle(channel,(e:IpcMainInvokeEvent,...args:unknown[])=>{if(!BrowserWindow.fromWebContents(e.sender)||e.senderFrame!==e.sender.mainFrame)throw Error('Unauthorized IPC sender');return fn(...args)})
  const id=z.uuid(),hash=z.string().regex(/^[a-f0-9]{64}$/)
  const save=z.object({record:RecordSchema,expectedHash:hash.nullable()})
+ handle('reports:overview',date=>s.overview.read(z.iso.date().parse(date)))
+ handle('reports:buildWeekly',date=>s.weekly.build(z.iso.date().parse(date)))
+ handle('reports:training',date=>s.training.propose(z.iso.date().parse(date)))
+ handle('reports:adopt',p=>s.training.adopt(AdoptAdviceSchema.parse(p)))
  handle('garmin:overview',date=>s.garmin.readOverview(z.iso.date().parse(date)))
  handle('garmin:activities',range=>s.garmin.readActivities(z.object({from:z.iso.date().optional(),through:z.iso.date().optional()}).parse(range??{})))
  handle('garmin:trainingPlan',date=>s.garmin.readTrainingPlan(z.iso.date().parse(date)))

@@ -2,6 +2,7 @@ import { contextBridge,ipcRenderer } from 'electron'
 import type { AiaAPI } from '../shared/api'
 const api:AiaAPI={
  runtime:()=>ipcRenderer.invoke('aia:runtime'),
+ reports:{overview:date=>ipcRenderer.invoke('reports:overview',date),buildWeekly:date=>ipcRenderer.invoke('reports:buildWeekly',date),training:date=>ipcRenderer.invoke('reports:training',date),adopt:p=>ipcRenderer.invoke('reports:adopt',p)},
  records:{list:filter=>ipcRenderer.invoke('records:list',filter),get:id=>ipcRenderer.invoke('records:get',id),save:input=>ipcRenderer.invoke('records:save',input),remove:(id,hash)=>ipcRenderer.invoke('records:remove',id,hash),restore:id=>ipcRenderer.invoke('records:restore',id)},
  drafts:{get:key=>ipcRenderer.invoke('drafts:get',key),save:(key,text)=>ipcRenderer.invoke('drafts:save',key,text)},
  attachments:{choose:()=>ipcRenderer.invoke('attachments:choose'),resolve:id=>ipcRenderer.invoke('attachments:resolve',id),open:id=>ipcRenderer.invoke('attachments:open',id)},

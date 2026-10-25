@@ -48,3 +48,5 @@ T13：完成。Electron游戏流程1/1、typecheck/lint/build通过。游戏状�
 T14：完成。Electron开发流程1/1、typecheck/lint/build通过。名称不同于仓库且改名后仍为原项目ID和repoUrl；阶段/目标/下一步、问题状态、版本记录及正文搜索通过。项目仓库入口只打开明确HTTPS地址，不操作远端代码或Issues。测试精确区分新建/编辑字段，保留全部断言。
 
 T15：完成。garmin-normalizer单元4/4、reader集成1/1、Electron运动1/1，typecheck/lint/build通过。全部夹具为合成值；未调用Garmin或回写原快照。业务日期/采集时间/APP读取时间分开，旧准备度、部分步数、失败/未知单位/明确无新增、周度字段兼容通过。发现Markdown反引号ID导致重复后修复，完整历史保留、JSON更正去重、坏快照保留有效值、源字节不变实测。首页与运动页来源日期一致。
+
+T16：完成。report-rules单元4/4、training-adoption集成2/2、Electron报告1/1，typecheck/lint/build通过。自然周时区、实际统计、模板/计划/参考排除、重复ID与佳明ID去重、空时长、覆盖日期、报告来源回跳通过。训练原计划/顺延/指定时段/跳过有依据，采用前不建计划；来源哈希改变拒绝旧预览。发现改时段产生第二条计划后修复为同ID更新，跳过须原因并取消关联待办，整组事务保留原佳明文件。
