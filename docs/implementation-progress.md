@@ -26,4 +26,6 @@ T04：完成。archive-recovery 7/7；Electron persistence+smoke 2/2，含SIGKIL
 T05：完成。legacy-import+archive-recovery共12/12，typecheck/lint通过。发现原生watch资源错误后加入实际轮询回退，未忽略未处理异常；外部变化断言保留。
 Ruling: 原生文件监听在资源不足时回退轮询；代价是该环境下最多约1–2秒的文件发现延迟，保持原数据与变化接收标准。
 
-T06：完成。query单元1/1；真实Electron搜索/重启3/3；1万条原生索引测试通过，热查询5.3ms（阈值500ms）；typecheck/lint通过。中文单字、两字、参数、报告、字面符号、外部更新、索引删除重建均实测。
+T06：功能测试通过。query单元1/1；真实Electron搜索/重启3/3；1万条原生索引测试通过，热查询5.3ms（阈值500ms）；lint通过。随后类型检查返回测试声明TS2353，先前把typecheck写成通过不准确；已纠正，先修复并复跑本阶段门再实现T07。中文单字、两字、参数、报告、字面符号、外部更新、索引删除重建均实测。
+
+T06补充门：修正Playwright不支持的TestDetails.timeout属性（未改变数据量、500ms断言或全局超时）。typecheck退出0；1万条测试再次通过，热查询7.9ms。本阶段现已完整通过，开始实现T07；导航测试已观察到预期缺少入口失败。
