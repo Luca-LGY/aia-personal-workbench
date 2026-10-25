@@ -1,7 +1,7 @@
 import type { RecordEnvelope } from './schemas'
 import type { SaveRecord,RecordFilter,DeletionReceipt,AttachmentRef,ArchiveChange } from './models'
 import type { SearchQuery,SearchPage,IndexReport } from './search'
-export interface RuntimeInfo {archiveRoot:string;stateRoot:string;sqliteReady:boolean}
+export interface RuntimeInfo {archiveRoot:string;stateRoot:string;sqliteReady:boolean;now:string}
 export interface RecordView {record:RecordEnvelope;path:string;hash:string}
 export interface AiaAPI {
  runtime():Promise<RuntimeInfo>
