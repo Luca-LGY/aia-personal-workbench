@@ -1,0 +1,5 @@
+import { z } from 'zod'
+import { MODULES,KINDS } from '../../shared/models'
+import type { SearchQuery } from '../../shared/search'
+export const SearchQuerySchema=z.object({query:z.string(),module:z.enum(MODULES).optional(),kind:z.enum(KINDS).optional(),dateFrom:z.iso.date().optional(),dateTo:z.iso.date().optional(),limit:z.number().int().min(1).max(100).default(50),offset:z.number().int().nonnegative().default(0)})
+export function queryParts(input:SearchQuery){const q=SearchQuerySchema.parse(input),clauses:string[]=[],params:(string|number)[]=[];const text=q.query.trim();if(text){clauses.push("search_text LIKE ? ESCAPE '\\'");params.push('%'+text.replace(/[\\%_]/g,'\\$&')+'%')}if(q.module){clauses.push('module = ?');params.push(q.module)}if(q.kind){clauses.push('kind = ?');params.push(q.kind)}if(q.dateFrom){clauses.push('date >= ?');params.push(q.dateFrom)}if(q.dateTo){clauses.push('date <= ?');params.push(q.dateTo)}return{where:clauses.length?'WHERE '+clauses.join(' AND '):'',params,limit:q.limit,offset:q.offset,query:text}}

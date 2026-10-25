@@ -25,3 +25,5 @@ T04：完成。archive-recovery 7/7；Electron persistence+smoke 2/2，含SIGKIL
 
 T05：完成。legacy-import+archive-recovery共12/12，typecheck/lint通过。发现原生watch资源错误后加入实际轮询回退，未忽略未处理异常；外部变化断言保留。
 Ruling: 原生文件监听在资源不足时回退轮询；代价是该环境下最多约1–2秒的文件发现延迟，保持原数据与变化接收标准。
+
+T06：完成。query单元1/1；真实Electron搜索/重启3/3；1万条原生索引测试通过，热查询5.3ms（阈值500ms）；typecheck/lint通过。中文单字、两字、参数、报告、字面符号、外部更新、索引删除重建均实测。

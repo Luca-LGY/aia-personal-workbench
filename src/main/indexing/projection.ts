@@ -1,0 +1,6 @@
+import type Database from 'better-sqlite3'
+import type { ImportReport } from '../archive/importer'
+export function updateProjection(db:Database.Database,report:ImportReport){
+ const upsert=db.prepare('INSERT INTO documents VALUES(@id,@path,@hash,@title,@body,@module,@kind,@role,@date,@updated_at,@search_text,@json) ON CONFLICT(id) DO UPDATE SET path=excluded.path,hash=excluded.hash,title=excluded.title,body=excluded.body,module=excluded.module,kind=excluded.kind,role=excluded.role,date=excluded.date,updated_at=excluded.updated_at,search_text=excluded.search_text,json=excluded.json WHERE documents.hash != excluded.hash OR documents.path != excluded.path')
+ db.transaction(()=>{const seen=new Set<string>();for(const v of report.views){const r=v.record;seen.add(r.id);upsert.run({id:r.id,path:v.path,hash:v.hash,title:r.title,body:r.body,module:r.module,kind:r.kind,role:r.role,date:r.date,updated_at:r.updatedAt,search_text:r.title+'\n'+r.body+'\n'+JSON.stringify(r.data)+'\n'+v.path,json:JSON.stringify(v)})}if(report.complete){for(const row of db.prepare('SELECT id FROM documents').all() as {id:string}[])if(!seen.has(row.id))db.prepare('DELETE FROM documents WHERE id=?').run(row.id)}})()
+}
