@@ -15,6 +15,7 @@ export const RecordSchema=z.discriminatedUnion('kind',[
  variant('report',{weekStart:z.iso.date().optional(),weekEnd:z.iso.date().optional()}).extend({role:z.literal('analysis')}),variant('advice',{basis:z.array(z.string()),adopted:z.boolean().optional()}).extend({role:z.literal('suggestion')}),variant('document',{})
 ])
 export type RecordEnvelope=z.infer<typeof RecordSchema>
+export function makeRecord<K extends RecordKind>(kind:K,overrides?:Record<string,unknown>,now?:Date):Extract<RecordEnvelope,{kind:K}>
 export function makeRecord(kind:RecordKind,overrides:Record<string,unknown>={},now=new Date()):RecordEnvelope{
  return RecordSchema.parse({id:globalThis.crypto.randomUUID(),schemaVersion:1,module:'inbox',role:kind==='plan'?'plan':kind==='report'?'analysis':kind==='advice'?'suggestion':'actual',title:'未命名记录',date:localDate(now),createdAt:now.toISOString(),updatedAt:now.toISOString(),body:'',sourceRefs:[],attachmentIds:[],data:{},...overrides,kind})
 }
