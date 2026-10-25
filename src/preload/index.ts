@@ -1,4 +1,10 @@
 import { contextBridge,ipcRenderer } from 'electron'
 import type { AiaAPI } from '../shared/api'
-const api:AiaAPI={runtime:()=>ipcRenderer.invoke('aia:runtime')}
+const api:AiaAPI={
+ runtime:()=>ipcRenderer.invoke('aia:runtime'),
+ records:{list:filter=>ipcRenderer.invoke('records:list',filter),get:id=>ipcRenderer.invoke('records:get',id),save:input=>ipcRenderer.invoke('records:save',input),remove:(id,hash)=>ipcRenderer.invoke('records:remove',id,hash),restore:id=>ipcRenderer.invoke('records:restore',id)},
+ drafts:{get:key=>ipcRenderer.invoke('drafts:get',key),save:(key,text)=>ipcRenderer.invoke('drafts:save',key,text)},
+ attachments:{choose:()=>ipcRenderer.invoke('attachments:choose')},
+ onChange:listener=>{const f=(_event:unknown,change:Parameters<typeof listener>[0])=>listener(change);ipcRenderer.on('archive:change',f);return()=>{ipcRenderer.removeListener('archive:change',f)}}
+}
 contextBridge.exposeInMainWorld('aia',api)

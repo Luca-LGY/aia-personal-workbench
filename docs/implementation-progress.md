@@ -20,3 +20,5 @@ T00：完成。本机只读清单与 Git 路径集合一致，202 个普通文�
 T02：本机HTTP探针5/5通过（先缺失实现失败，再通过）。真实坚果云应用密码／测试目录及APP专用GitHub授权尚未提供，live验证保持待验；按计划继续不依赖凭据的本机功能。
 
 T03：完成。4项模型/Markdown往返/角色/坏元数据测试 RED→GREEN；typecheck通过。未知字段、空数量与零值被保留。
+
+T04：完成。archive-recovery 7/7；Electron persistence+smoke 2/2，含SIGKILL后重启；typecheck/lint通过。已覆盖陈旧编辑拒绝、事务阶段恢复、外部冲突保全、附件去重、草稿、路径逃逸、删除撤销。
