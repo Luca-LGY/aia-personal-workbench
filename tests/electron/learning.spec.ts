@@ -1,0 +1,33 @@
+import { test, expect } from '@playwright/test'
+import { launchTestApp } from '../helpers/electron-app'
+test('custom subject, note, questions and materials connect to plan and search without fabricated duration', async () => {
+  const t = await launchTestApp(); try {
+    await t.page.getByRole('navigation').getByRole('button', { name: '学习数据', exact: true }).click()
+    await expect(t.page.getByRole('button', { name: '科目：ODE', exact: true })).toHaveCount(0)
+    await t.page.getByLabel('新科目名称').fill('常微分方程专题')
+    await t.page.getByRole('button', { name: '创建科目', exact: true }).click()
+    await t.page.getByRole('button', { name: '科目：常微分方程专题', exact: true }).click()
+    await t.page.getByLabel('笔记标题').fill('稳定性判据笔记')
+    await t.page.getByLabel('章节或知识点').fill('第三章')
+    await t.page.getByLabel('笔记正文').fill('独特关键词：李雅普诺夫函数的构造')
+    await t.page.getByLabel('学习疑问').fill('半正定时还需要什么条件？')
+    await t.page.getByLabel('材料来源').fill('教材第三章，第42页')
+    await t.page.getByLabel('学习下一步').fill('验证一个具体例子')
+    await t.page.getByRole('button', { name: '保存学习笔记', exact: true }).click()
+    await expect(t.page.getByText('半正定时还需要什么条件？', { exact: true })).toBeVisible()
+    await expect(t.page.getByText('时长未记录', { exact: true })).toBeVisible()
+    const card = t.page.getByRole('article', { name: '学习笔记：稳定性判据笔记' })
+    await card.getByRole('button', { name: '加入今日计划', exact: true }).click()
+    await expect(t.page.getByRole('status')).toContainText('已加入今日计划')
+    const [note] = await t.page.evaluate(() => window.aia.records.list({ kind: 'note' }))
+    expect(note.record.data.durationMin).toBeNull()
+    const [subject] = await t.page.evaluate(() => window.aia.records.list({ kind: 'subject' }))
+    expect(subject.record.data).not.toHaveProperty('mastery')
+    const [plan] = await t.page.evaluate(() => window.aia.records.list({ kind: 'plan' }))
+    expect(plan.record.data.sourceId).toBe(note.record.id)
+    await t.page.getByRole('textbox', { name: '全局关键词搜索' }).fill('李雅普诺夫')
+    await t.page.getByRole('textbox', { name: '全局关键词搜索' }).press('Enter')
+    await t.page.getByRole('button', { name: '打开档案：稳定性判据笔记' }).click()
+    await expect(t.page.getByRole('dialog', { name: '稳定性判据笔记' })).toContainText('教材第三章，第42页')
+  } finally { await t.close() }
+})

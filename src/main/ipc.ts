@@ -9,6 +9,11 @@ import { ScheduleSchema } from '../shared/plans'
 export function registerIPC(s:Services){
  const handle=(channel:string,fn:(...args:unknown[])=>unknown)=>ipcMain.handle(channel,(e:IpcMainInvokeEvent,...args:unknown[])=>{if(!BrowserWindow.fromWebContents(e.sender)||e.senderFrame!==e.sender.mainFrame)throw Error('Unauthorized IPC sender');return fn(...args)})
  const id=z.uuid(),hash=z.string().regex(/^[a-f0-9]{64}$/)
+ const save=z.object({record:RecordSchema,expectedHash:hash.nullable()})
+ handle('learning:listSubjects',()=>s.learning.listSubjects())
+ handle('learning:getSubject',i=>s.learning.getSubject(id.parse(i)))
+ handle('learning:saveSubject',input=>s.learning.saveSubject(save.parse(input)))
+ handle('learning:saveNote',input=>s.learning.saveNote(save.parse(input)))
  handle('records:list',async f=>{const filter=z.object({module:z.enum(MODULES).optional(),kind:z.enum(KINDS).optional(),date:z.iso.date().optional(),role:z.enum(['actual','plan','reference','template','analysis','suggestion']).optional()}).parse(f??{}) as RecordFilter;return s.search.list(filter)})
  handle('records:get',i=>s.search.view(id.parse(i)))
  handle('records:save',input=>s.repository.save(z.object({record:RecordSchema,expectedHash:hash.nullable()}).parse(input)))
