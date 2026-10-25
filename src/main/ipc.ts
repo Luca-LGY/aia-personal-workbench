@@ -7,10 +7,20 @@ import { SearchQuerySchema } from './indexing/query'
 import { CapturePreviewSchema } from '../shared/capture'
 import { ScheduleSchema } from '../shared/plans'
 import { AdoptAdviceSchema } from './reports/training'
+import { ConnectionInputSchema } from './connections/settings'
+import { atomicWrite } from './archive/transactions'
 export function registerIPC(s:Services,options:{captureReplyDelayMs?:number}={}){
  const handle=(channel:string,fn:(...args:unknown[])=>unknown)=>ipcMain.handle(channel,(e:IpcMainInvokeEvent,...args:unknown[])=>{if(!BrowserWindow.fromWebContents(e.sender)||e.senderFrame!==e.sender.mainFrame)throw Error('Unauthorized IPC sender');return fn(...args)})
  const id=z.uuid(),hash=z.string().regex(/^[a-f0-9]{64}$/)
  const save=z.object({record:RecordSchema,expectedHash:hash.nullable()})
+ const endpoint=z.enum(['webdav','github'])
+ handle('connections:getState',()=>s.connections.getState())
+ handle('connections:configure',p=>s.connections.configure(ConnectionInputSchema.parse(p)))
+ handle('connections:setEnabled',(i,enabled)=>s.connections.setEnabled(endpoint.parse(i),z.boolean().parse(enabled)))
+ handle('connections:test',i=>s.connections.test(endpoint.parse(i)))
+ handle('connections:export',()=>s.connections.export())
+ handle('connections:exportFile',async()=>{const result=await dialog.showSaveDialog({defaultPath:'AIA-连接设置.json',filters:[{name:'JSON',extensions:['json']}]});if(result.canceled||!result.filePath)return false;await atomicWrite(result.filePath,JSON.stringify(await s.connections.export(),null,2));return true})
+ s.connections.onChange(()=>{for(const w of BrowserWindow.getAllWindows())w.webContents.send('connections:change')})
  handle('reports:overview',date=>s.overview.read(z.iso.date().parse(date)))
  handle('reports:buildWeekly',date=>s.weekly.build(z.iso.date().parse(date)))
  handle('reports:training',date=>s.training.propose(z.iso.date().parse(date)))

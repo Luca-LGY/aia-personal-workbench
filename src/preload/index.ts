@@ -2,6 +2,7 @@ import { contextBridge,ipcRenderer } from 'electron'
 import type { AiaAPI } from '../shared/api'
 const api:AiaAPI={
  runtime:()=>ipcRenderer.invoke('aia:runtime'),
+ connections:{getState:()=>ipcRenderer.invoke('connections:getState'),configure:p=>ipcRenderer.invoke('connections:configure',p),setEnabled:(id,enabled)=>ipcRenderer.invoke('connections:setEnabled',id,enabled),test:id=>ipcRenderer.invoke('connections:test',id),export:()=>ipcRenderer.invoke('connections:export'),exportFile:()=>ipcRenderer.invoke('connections:exportFile'),onChange:listener=>{const f=()=>listener();ipcRenderer.on('connections:change',f);return()=>{ipcRenderer.removeListener('connections:change',f)}}},
  reports:{overview:date=>ipcRenderer.invoke('reports:overview',date),buildWeekly:date=>ipcRenderer.invoke('reports:buildWeekly',date),training:date=>ipcRenderer.invoke('reports:training',date),adopt:p=>ipcRenderer.invoke('reports:adopt',p)},
  records:{list:filter=>ipcRenderer.invoke('records:list',filter),get:id=>ipcRenderer.invoke('records:get',id),save:input=>ipcRenderer.invoke('records:save',input),remove:(id,hash)=>ipcRenderer.invoke('records:remove',id,hash),restore:id=>ipcRenderer.invoke('records:restore',id)},
  drafts:{get:key=>ipcRenderer.invoke('drafts:get',key),save:(key,text)=>ipcRenderer.invoke('drafts:save',key,text)},
