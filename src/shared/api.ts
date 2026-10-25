@@ -16,6 +16,7 @@ export interface AiaAPI {
  research:{listProjects():Promise<RecordEnvelope[]>;getProject(id:string):Promise<{project:RecordEnvelope;experiments:RecordEnvelope[]}|null>;saveProject(input:SaveRecord):Promise<RecordEnvelope>;saveExperiment(input:SaveRecord):Promise<RecordEnvelope>}
  diet:{listDay(date:string):Promise<RecordEnvelope[]>;saveMeal(input:SaveRecord):Promise<RecordEnvelope>}
  games:{saveGame(input:SaveRecord):Promise<RecordEnvelope>;saveSession(input:SaveRecord):Promise<RecordEnvelope>;listSessions(gameId:string):Promise<RecordEnvelope[]>}
+ development:{saveProject(input:SaveRecord):Promise<RecordEnvelope>;saveIssue(input:SaveRecord):Promise<RecordEnvelope>;saveVersion(input:SaveRecord):Promise<RecordEnvelope>;openRepo(projectId:string):Promise<void>}
  search:{query(input:SearchQuery):Promise<SearchPage>;rebuild():Promise<IndexReport>}
  sources:{resolve(id:string):Promise<{path:string;exists:boolean;changed:boolean;hash:string|null}>;open(id:string):Promise<void>}
  onChange(listener:(change:ArchiveChange)=>void):()=>void
