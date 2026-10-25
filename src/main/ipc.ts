@@ -10,7 +10,8 @@ import { AdoptAdviceSchema } from './reports/training'
 import { ConnectionInputSchema } from './connections/settings'
 import { atomicWrite } from './archive/transactions'
 export function registerIPC(s:Services,options:{captureReplyDelayMs?:number}={}){
- const handle=(channel:string,fn:(...args:unknown[])=>unknown)=>ipcMain.handle(channel,(e:IpcMainInvokeEvent,...args:unknown[])=>{if(!BrowserWindow.fromWebContents(e.sender)||e.senderFrame!==e.sender.mainFrame)throw Error('Unauthorized IPC sender');return fn(...args)})
+ const pending=new Set<Promise<unknown>>();let accepting=true
+ const handle=(channel:string,fn:(...args:unknown[])=>unknown)=>ipcMain.handle(channel,(e:IpcMainInvokeEvent,...args:unknown[])=>{if(!BrowserWindow.fromWebContents(e.sender)||e.senderFrame!==e.sender.mainFrame)throw Error('Unauthorized IPC sender');if(!accepting)throw Error('APP正在退出，请稍后重新打开');const work=Promise.resolve().then(()=>fn(...args));pending.add(work);void work.then(()=>pending.delete(work),()=>pending.delete(work));return work})
  const id=z.uuid(),hash=z.string().regex(/^[a-f0-9]{64}$/)
  const save=z.object({record:RecordSchema,expectedHash:hash.nullable()})
  const endpoint=z.enum(['webdav','github'])
@@ -58,6 +59,7 @@ export function registerIPC(s:Services,options:{captureReplyDelayMs?:number}={})
  handle('capture:commit',async p=>{const result=await s.capture.commit(CapturePreviewSchema.parse(p));if(options.captureReplyDelayMs)await new Promise(resolve=>setTimeout(resolve,options.captureReplyDelayMs));return result})
  handle('capture:undo',i=>s.capture.undo(id.parse(i)))
  handle('plans:schedule',p=>s.plans.schedule(ScheduleSchema.parse(p)))
+ handle('plans:update',p=>s.plans.update(save.parse(p)))
  handle('plans:listDay',date=>s.plans.listDay(z.iso.date().parse(date)))
  handle('plans:setStatus',(i,status,h)=>s.plans.setStatus(id.parse(i),z.enum(['pending','done','cancelled']).parse(status),hash.parse(h)))
  handle('plans:reschedule',(i,date,h)=>s.plans.reschedule(id.parse(i),z.iso.date().parse(date),hash.parse(h)))
@@ -69,4 +71,5 @@ export function registerIPC(s:Services,options:{captureReplyDelayMs?:number}={})
  handle('sources:resolve',i=>s.search.resolveSource(id.parse(i)))
  handle('sources:open',async i=>{const source=await s.search.resolveSource(id.parse(i));if(!source.exists)throw Error('原档案不存在');const error=await shell.openPath(source.path);if(error)throw Error(error)})
  s.repository.onChange(c=>{for(const w of BrowserWindow.getAllWindows())w.webContents.send('archive:change',c)})
+ return{async drain(){accepting=false;await Promise.allSettled([...pending]);await s.repository.transactions.idle()}}
 }

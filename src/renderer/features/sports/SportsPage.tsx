@@ -1,14 +1,14 @@
 import { useState } from 'react'
 import type { GarminActivity } from '../../../shared/garmin'
 import { localDate, makeRecord } from '../../../shared/schemas'
-import { useRecords, errorText } from '../../hooks'
+import { useTodayDate, useRecords, errorText } from '../../hooks'
 import { SourceLink } from '../../components/SourceLink'
 import { useGarmin, garminStatus, formatStamp } from './useGarmin'
 import { TrainingAdvice } from './TrainingAdvice'
 import { ActivityDetail } from './ActivityDetail'
 const metricLabels = { steps: '步数', sleepHours: '睡眠', restingHr: '静息心率', readiness: '训练准备度', recoveryHours: '恢复时间' }
 export function SportsPage(p: { now: string; open: (id: string) => void; notify: (s: string) => void }) {
-  const [date, setDate] = useState(localDate(new Date(p.now))), [selected, setSelected] = useState<GarminActivity | null>(null), [query, setQuery] = useState('')
+  const [date, setDate] = useTodayDate(localDate(new Date(p.now))), [selected, setSelected] = useState<GarminActivity | null>(null), [query, setQuery] = useState('')
   const [sport, setSport] = useState('跑步'), [minutes, setMinutes] = useState(''), [distance, setDistance] = useState(''), [description, setDescription] = useState(''), [busy, setBusy] = useState(false)
   const { overview: o, error } = useGarmin(date), { records } = useRecords({ module: 'sports' })
   async function addActivity() { setBusy(true); p.notify(''); try { const record = makeRecord('activity', { title: description || sport, module: 'sports', date, data: { sport, durationMin: minutes === '' ? null : Number(minutes), distanceKm: distance === '' ? null : Number(distance) } }); await window.aia.records.save({ record, expectedHash: null }); setDescription(''); setMinutes(''); setDistance(''); p.notify('运动实际记录已保存。') } catch (e) { p.notify(errorText(e)) } finally { setBusy(false) } }

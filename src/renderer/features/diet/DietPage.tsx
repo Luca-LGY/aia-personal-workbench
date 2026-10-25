@@ -2,10 +2,10 @@ import { useState } from 'react'
 import { Utensils } from 'lucide-react'
 import type { RecordView } from '../../../shared/api'
 import { localDate, makeRecord } from '../../../shared/schemas'
-import { useRecords, errorText } from '../../hooks'
+import { useTodayDate, useRecords, errorText } from '../../hooks'
 const meals: Record<string, string> = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐', snack: '加餐' }
 export function DietPage(p: { now: string; open: (id: string) => void; notify: (s: string) => void }) {
-  const [date, setDate] = useState(localDate(new Date(p.now))), [meal, setMeal] = useState('breakfast'), [role, setRole] = useState('actual'), [description, setDescription] = useState(''), [quantity, setQuantity] = useState(''), [consumed, setConsumed] = useState(true), [editing, setEditing] = useState<RecordView | null>(null), [busy, setBusy] = useState(false)
+  const [date, setDate] = useTodayDate(localDate(new Date(p.now))), [meal, setMeal] = useState('breakfast'), [role, setRole] = useState('actual'), [description, setDescription] = useState(''), [quantity, setQuantity] = useState(''), [consumed, setConsumed] = useState(true), [editing, setEditing] = useState<RecordView | null>(null), [busy, setBusy] = useState(false)
   const { records, error } = useRecords({ kind: 'meal', module: 'diet', date })
   function clear() { setEditing(null); setDescription(''); setQuantity(''); setConsumed(true) }
   function edit(v: RecordView) { setEditing(v); setMeal(String(v.record.data.meal)); setDescription(String(v.record.data.description)); setQuantity(v.record.data.quantity == null ? '' : String(v.record.data.quantity)); setRole(v.record.role); setConsumed(v.record.data.consumed !== false) }

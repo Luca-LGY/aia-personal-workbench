@@ -2,6 +2,8 @@ import { z } from 'zod'
 import { makeRecord, type RecordEnvelope } from '../../shared/schemas'
 import { ScheduleSchema, type ScheduleInput, type PlanStatus } from '../../shared/plans'
 import type { ArchiveRepository } from '../archive/repository'
+import type { SaveRecord } from '../../shared/models'
+import { RecordSchema } from '../../shared/schemas'
 export class PlanService {
   constructor(private repo: ArchiveRepository, private resolveSource?: (id: string) => Promise<RecordEnvelope | null>) {}
   async schedule(input: ScheduleInput) {
@@ -16,4 +18,12 @@ export class PlanService {
   private async version(id: string, hash: string) { const v = await this.repo.version(id); if (!v || v.hash !== hash) throw Error('CONFLICT: 计划已变化，请刷新'); if (v.record.kind !== 'plan') throw Error('不是计划记录'); return { ...v, record: v.record } }
   async setStatus(id: string, status: PlanStatus, hash: string) { z.enum(['pending', 'done', 'cancelled']).parse(status); const v = await this.version(id, hash); return this.repo.save({ record: { ...v.record, updatedAt: new Date().toISOString(), data: { ...v.record.data, status } }, expectedHash: hash }) }
   async reschedule(id: string, date: string, hash: string) { z.iso.date().parse(date); const v = await this.version(id, hash); return this.repo.save({ record: { ...v.record, date, updatedAt: new Date().toISOString(), data: { ...v.record.data, scheduledDate: date } }, expectedHash: hash }) }
+  async update(input: SaveRecord) {
+    const r = RecordSchema.parse(input.record)
+    if (r.kind !== 'plan' || !input.expectedHash) throw Error('请选择已有计划')
+    const prior = await this.version(r.id, input.expectedHash)
+    if (r.data.sourceId !== prior.record.data.sourceId) throw Error('计划来源不能修改')
+    ScheduleSchema.parse({ date: r.date, time: r.data.time || undefined, priority: r.data.priority })
+    return this.repo.save({ ...input, record: { ...r, data: { ...r.data, scheduledDate: r.date } } })
+  }
 }

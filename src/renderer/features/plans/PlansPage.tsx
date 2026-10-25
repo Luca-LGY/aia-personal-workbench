@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Check, RotateCcw } from 'lucide-react'
 import type { RecordView } from '../../../shared/api'
 import { localDate } from '../../../shared/schemas'
-import { useRecords, errorText, moduleLabels } from '../../hooks'
+import { useTodayDate, useRecords, errorText, moduleLabels } from '../../hooks'
 import { PlanOrigin } from '../../components/PlanSourceLink'
 export function PlanRow({ view, open, notify, compact = false }: { view: RecordView; open: (id: string) => void; notify: (s: string) => void; compact?: boolean }) {
   const r = view.record, [date, setDate] = useState(r.date), [busy, setBusy] = useState(false)
@@ -21,7 +21,7 @@ export function TodayPlans(p: { now: string; open: (id: string) => void; notify:
   return visible.length ? <div>{visible.slice(0, 6).map(v => <PlanRow key={v.record.id} view={v} compact open={p.open} notify={p.notify}/>)}</div> : <p className="empty-inline">今天还没有安排</p>
 }
 export function PlansPage(p: { now: string; open: (id: string) => void; notify: (s: string) => void }) {
-  const [date, setDate] = useState(localDate(new Date(p.now))), [title, setTitle] = useState(''), [time, setTime] = useState(''), [priority, setPriority] = useState<'low' | 'normal' | 'high'>('normal'), [busy, setBusy] = useState(false)
+  const [date, setDate] = useTodayDate(localDate(new Date(p.now))), [title, setTitle] = useState(''), [time, setTime] = useState(''), [priority, setPriority] = useState<'low' | 'normal' | 'high'>('normal'), [busy, setBusy] = useState(false)
   const { records, error } = useRecords({ kind: 'plan', date })
   async function add() { setBusy(true); try { await window.aia.plans.schedule({ title, date, ...(time ? { time } : {}), priority }); setTitle('') } catch (e) { p.notify(errorText(e)) } finally { setBusy(false) } }
   return <section className="page"><div className="page-title"><h2>今日计划</h2><p>安排下一步，完成后保留来源和记录。</p></div><div className="filters"><label>查看日期<input type="date" aria-label="查看日期" value={date} onChange={e => setDate(e.target.value)}/></label></div>

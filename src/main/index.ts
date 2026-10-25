@@ -1,4 +1,4 @@
-import { app,BrowserWindow,ipcMain } from 'electron'
+import { app,BrowserWindow,ipcMain,powerMonitor } from 'electron'
 import { mkdirSync } from 'node:fs'
 import { join,dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -17,7 +17,8 @@ mkdirSync(join(stateRoot,'cache'),{recursive:true});mkdirSync(archiveRoot,{recur
 const db=new Database(join(stateRoot,'cache','index.sqlite'))
 db.exec('CREATE TABLE IF NOT EXISTS app_metadata(key TEXT PRIMARY KEY,value TEXT); INSERT OR IGNORE INTO app_metadata VALUES(\'schema\',\'1\')')
 const services=await createServices(archiveRoot,stateRoot,db,()=>new Date(testMode&&process.env.AIA_NOW?process.env.AIA_NOW:Date.now()),testMode)
-registerIPC(services,{captureReplyDelayMs:testMode?Math.min(3000,Math.max(0,Number(process.env.AIA_TEST_CAPTURE_REPLY_DELAY)||0)):0})
+const ipc=registerIPC(services,{captureReplyDelayMs:testMode?Math.min(3000,Math.max(0,Number(process.env.AIA_TEST_CAPTURE_REPLY_DELAY)||0)):0})
+powerMonitor.on('resume',()=>{for(const w of BrowserWindow.getAllWindows())w.webContents.send('aia:wake')})
 ipcMain.handle('aia:runtime',()=>({archiveRoot,stateRoot,now:testMode&&process.env.AIA_NOW?process.env.AIA_NOW:new Date().toISOString(),sqliteReady:!!db.prepare('SELECT value FROM app_metadata WHERE key=?').get('schema')}))
 const win=new BrowserWindow({width:1487,height:1058,useContentSize:true,title:'我的工作台',backgroundColor:'#FAF9F5',webPreferences:{preload:join(dir,'../preload/index.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}})
 const initialHash=process.argv.includes('--aia-open-settings')?'/settings':'/'
@@ -26,5 +27,6 @@ if(process.env.ELECTRON_RENDERER_URL)await win.loadURL(process.env.ELECTRON_REND
 else await win.loadFile(join(dir,'../renderer/index.html'),{hash:initialHash})
 app.on('window-all-closed',()=>app.quit())
 app.on('will-quit',()=>db.close())
-app.on('before-quit',()=>{void services.stopWatcher()})
+let readyToQuit=false
+app.on('before-quit',event=>{if(readyToQuit)return;event.preventDefault();void ipc.drain().then(()=>services.stopWatcher()).then(()=>{readyToQuit=true;app.quit()})})
 })
