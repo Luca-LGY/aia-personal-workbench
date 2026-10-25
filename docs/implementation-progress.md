@@ -60,3 +60,5 @@ T18：完成。同步规划unit12/12、持久日志integration6/6，typecheck/li
 T19：本机实现完成，真实账号待验证。HTTP合同12/12，budget+stream unit2/2，journal回归6/6，Electron目录检查+连接回归2/2，typecheck/lint/build通过。独立复核3项已复现并修复：分页位移漏旧文件、长度不符缓存洗成完整、根丢失误报删除成功；弱ETag精确读拒绝、503等待也新增失败回归后修复。条件保护未验证绝不降级覆盖；流式16MB上传不用整对象读取API。用户明确真实凭据稍后提供，按计划继续T20。
 
 页面复核补全（T07–T17）：已完成。新增product-completeness原生测试5/5，既有计划回归1/1；计划时间/优先级同ID编辑、来源旁状态/延期日期、游玩/版本/手动运动结构字段与日期编辑、六模块来源摘要、跨午夜/唤醒日期刷新及历史选择保留通过。全量回归发现立即退出可能中断已提交保存，新增大正文退出复现测试先失败，再增加IPC排空和事务完成后退出；完整回归36 unit、54 integration、25 Electron通过。未删除、跳过或降低测试断言。
+
+T20：本机实现完成，真实账号待验证。GitHub HTTP契约12/12、历史改写planner单元13/13、原生GitHub连接1/1通过；本轮完整测试36 unit、54 integration、25 Electron及typecheck/lint/build通过。固定commit→真实tree、recursive截断回退、二进制/空文件、保留未知文件和可执行mode、多文件单commit与sha:null删除、force:false竞态、孤立commit不误确认、响应丢失重启幂等、发布后后代再编辑、401/404/权限、LFS/超大/符号链接/损坏blob均覆盖。commit请求身份/时间/parent持久化，流式base64上传；分支改写取消旧base。原生设置只读检查尚不发布。真实用户凭据仍按用户要求稍后配置。

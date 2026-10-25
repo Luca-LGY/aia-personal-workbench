@@ -102,3 +102,7 @@ test('incomplete local scan cannot advance its head to bytes that were never app
   expect(result.localChanges).toMatchObject([{ path: 'a.md', objectHash: hash('remote-new'), expectedHash: hash('old') }])
   expect(result.batches.every(b => !b.changes.some(c => c.objectHash === hash('old')))).toBe(true)
 })
+test('a rewritten GitHub history cannot inherit the old baseline and silently replace unchanged local bytes',()=>{
+ const input=setup({'a.md':'baseline'});change(input,'github',{'a.md':'rewritten branch'});input.endpoints[1].snapshot!.historyRewritten=true
+ const plan=planSync(input);expect(plan.conflicts).toHaveLength(1);expect(plan.localChanges).toHaveLength(0);expect(plan.batches.every(b=>!b.changes.length)).toBe(true)
+})

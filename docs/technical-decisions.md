@@ -17,3 +17,5 @@ APP使用独立的 `AIA-Workbench` 用户数据目录，测试使用临时独立
 大对象允许通过已存对象哈希参与规划，无需一次全部载入内存。发布准备采用流式哈希核验；仅在设备号、inode、大小、纳秒mtime与ctime完全一致时复用本进程完整性结果，重启后重验。完整备份仍逐项校验。
 
 坚果云协议核对参考[官方授权与限制](https://help.jianguoyun.com/?p=2064)、[WebDAV RFC4918](https://www.rfc-editor.org/rfc/rfc4918.html)及[坚果云官方Obsidian插件分页实现](https://github.com/nutstore/obsidian-nutstore-sync/blob/main/src/api/webdav.ts)。分页使用响应Link的next关系；是否可安全写入仍以真实账号能力探针为准。本APP预算300次/30分钟，不把客户端预算说成服务商配额。
+
+GitHub适配器按不可变commit读取真实tree SHA，发布仅force:false快进；提交存在与当前分支内容一致分别回执。上传blob按流式base64与Git blob SHA核对，未变更不创建提交。参考：https://docs.github.com/en/rest/git/refs#update-a-reference 、https://docs.github.com/en/rest/git/trees#get-a-tree 。真实账号验收待配置，不以合成HTTP服务替代。

@@ -35,7 +35,7 @@ export class ConnectionService {
     return this.getState()
   }) }
   setEnabled(id: EndpointId, enabled: boolean) { return this.queue(async () => { const prior = this.value.endpoints[id]; if (enabled && !prior.config) throw Error('请先配置该连接'); await this.publish(id, { ...prior, enabled }); return this.getState() }) }
-  async client(id: EndpointId) { const endpoint = this.value.endpoints[id]; if (!endpoint.enabled || !endpoint.config || !endpoint.credentialKey) return null; const secret = await this.vault.get(endpoint.credentialKey); if (!secret) throw Error('连接凭据不可用'); return { ...endpoint.config, secret, revision: endpoint.revision, capabilities: endpoint.capabilities, ...(this.allowTestHTTP ? { allowTestHTTP: true } : {}) } }
+  async client(id: EndpointId) { const endpoint = this.value.endpoints[id]; if (!endpoint.enabled || !endpoint.config || !endpoint.credentialKey) return null; const secret = await this.vault.get(endpoint.credentialKey); if (!secret) throw Error('连接凭据不可用'); return { ...endpoint.config, secret, revision: endpoint.revision, capabilities: endpoint.capabilities, apiBase:this.allowTestHTTP?process.env.AIA_TEST_GITHUB_API_BASE:undefined,...(this.allowTestHTTP ? { allowTestHTTP: true } : {}) } }
   test(id: EndpointId) { return this.queue(async () => {
     const prior = this.value.endpoints[id]; if (!prior.enabled) throw Error('请先启用连接')
     try {
@@ -45,7 +45,7 @@ export class ConnectionService {
         const verified = capabilities.authenticated && capabilities.conditionalWrite && capabilities.conditionalDelete && capabilities.createOnly && capabilities.unicodePaths && capabilities.completeListing
         await this.publish(id, { ...prior, capabilities, status: verified ? 'verified' : 'error', verifiedAt: verified ? capabilities.verifiedAt : null, error: verified ? undefined : capabilities.authenticated ? '连接可用，但安全同步能力尚未验证通过' : '验证失败：认证或权限被拒绝' })
       } else {
-        const github = await probeGithub({ owner: client.owner, repo: client.repo, branch: client.branch, token: client.secret })
+        const github = await probeGithub({ owner: client.owner, repo: client.repo, branch: client.branch, token: client.secret,apiBase:client.apiBase })
         await this.publish(id, { ...prior, github, status: github.writable ? 'verified' : 'error', verifiedAt: github.writable ? new Date().toISOString() : null, error: github.writable ? undefined : '验证失败：该仓库缺少写入权限' })
       }
     } catch { await this.publish(id, { ...prior, status: 'error', verifiedAt: null, error: '验证失败：请核对网络、地址、账号权限和应用密码。' }) }

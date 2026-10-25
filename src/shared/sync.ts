@@ -1,7 +1,7 @@
 import type { EndpointId } from './connections'
 export type { EndpointId } from './connections'
 export interface RemoteEntry { path: string; hash: string; revision: string; size: number; recordId?: string; restored?: boolean;writeSafe?:boolean }
-export interface ScanResult { complete: boolean; rootExists: boolean; revision: string; entries: RemoteEntry[]; warnings?: string[] }
+export interface ScanResult { complete: boolean; rootExists: boolean; revision: string; entries: RemoteEntry[]; warnings?: string[];historyRewritten?:boolean }
 export type VersionState = { kind: 'present'; hash: string } | { kind: 'deleted'; priorHash: string | null }
 export interface VersionNode { id: string; path: string; parents: string[]; state: VersionState; origin: string; operation: 'put' | 'delete' | 'merge' | 'restore'; recordId?: string }
 export interface EndpointBaseline { archiveId: string; namespace: string; initialized: boolean; entries: Record<string, { nodeId: string; revision: string | null }> }

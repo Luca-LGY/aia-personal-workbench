@@ -7,7 +7,7 @@ function entries(scan: ScanResult | null) { const result = new Map<string, Remot
 export function planSync(input: SyncInput): SyncPlan {
   const graph = { ...input.graph }, objects = { ...input.objects }, heads: Record<string, string> = {}, local = entries(input.local)
   for (const [hash, bytes] of Object.entries(objects)) if (digest(bytes) !== hash) throw Error('Corrupt sync object')
-  const endpoints = input.endpoints.map(e => ({ ...e, files: entries(e.snapshot), base: e.base?.archiveId === input.archiveId && e.base.namespace === e.namespace ? e.base : null as EndpointBaseline | null }))
+  const endpoints = input.endpoints.map(e => ({ ...e, files: entries(e.snapshot), base: e.base?.archiveId === input.archiveId && e.base.namespace === e.namespace && !e.snapshot?.historyRewritten ? e.base : null as EndpointBaseline | null }))
   const available=new Set([...Object.keys(objects),...input.availableObjects??[]])
   const plan: SyncPlan = { id: '', archiveId: input.archiveId, checkpointRevision: input.checkpointRevision, graph, objects, heads, localChanges: [], batches: endpoints.map(e => ({ id: '', endpointId: e.id, namespace: e.namespace, scanRevision: e.snapshot?.revision ?? '', changes: [] })), acknowledgements: [], conflicts: [], warnings: [],requiredObjects:[],initializedNamespaces:endpoints.filter(e=>e.allowInitializeEmpty&&complete(e.snapshot)&&e.files.size===0).map(e=>e.namespace) }
   const paths = new Set([...local.keys(), ...Object.keys(input.localHeads), ...endpoints.flatMap(e => [...e.files.keys(), ...Object.keys(e.base?.entries ?? {})])])
