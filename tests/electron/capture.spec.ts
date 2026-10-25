@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { launchTestApp } from '../helpers/electron-app'
+import { writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 
 test('capture edits classification, commits one identity, survives restart and can undo', async () => {
   const t = await launchTestApp()
@@ -33,4 +35,32 @@ test('capture edits classification, commits one identity, survives restart and c
     expect(research).toHaveLength(1)
     expect(research[0].record.body).toBe('一段暂时无法分类的想法')
   } finally { await reopened?.close(); await t.close() }
+})
+test('attachment changes preserve reviewed fields and IDs, and pending commit freezes every editor', async () => {
+  const t = await launchTestApp({ captureReplyDelayMs: 2000 }); try {
+    await t.page.getByRole('textbox', { name: '随手记内容' }).fill('今天早餐吃了鸡蛋')
+    await expect(t.page.getByLabel('事项1分类')).toHaveValue('diet')
+    await t.page.getByLabel('事项1标题').fill('已经修正的标题')
+    await t.page.getByLabel('事项1日期').fill('2026-10-24')
+    await expect.poll(async () => JSON.parse(await t.page.evaluate(() => window.aia.drafts.get('home'))).preview?.entries[0].record.title).toBe('已经修正的标题')
+    const before = await t.page.evaluate(async () => JSON.parse(await window.aia.drafts.get('home')) as {preview: {sourceId:string;entries:{record:{id:string}}[]}})
+    const file = join(t.temp, 'memo.txt'); await writeFile(file, '随手附件')
+    await t.app.evaluate(({ dialog }, path) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] }) }, file)
+    await t.page.getByRole('button', { name: '添加附件', exact: true }).click()
+    await expect(t.page.getByRole('button', { name: '移除附件memo.txt' })).toBeVisible()
+    await expect.poll(async () => JSON.parse(await t.page.evaluate(() => window.aia.drafts.get('home'))).preview?.attachmentIds.length).toBe(1)
+    await expect(t.page.getByLabel('事项1标题')).toHaveValue('已经修正的标题')
+    await expect(t.page.getByLabel('事项1日期')).toHaveValue('2026-10-24')
+    await t.page.getByRole('button', { name: '归档并同步', exact: true }).click()
+    await expect(t.page.getByLabel('事项1标题')).toBeDisabled()
+    await expect(t.page.getByLabel('事项1分类')).toBeDisabled()
+    await expect(t.page.getByRole('button', { name: '移除附件memo.txt' })).toBeDisabled()
+    await expect(t.page.getByRole('status')).toContainText('已保存到本机')
+    const [r] = await t.page.evaluate(() => window.aia.records.list({ kind: 'meal' }))
+    expect(r.record.id).toBe(before.preview.entries[0].record.id)
+    expect(r.record.sourceRefs[0].recordId).toBe(before.preview.sourceId)
+    expect(r.record.attachmentIds).toHaveLength(1)
+    expect(r.record.title).toBe('已经修正的标题')
+    expect(r.record.date).toBe('2026-10-24')
+  } finally { await t.close() }
 })

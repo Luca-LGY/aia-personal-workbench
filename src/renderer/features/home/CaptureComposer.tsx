@@ -8,7 +8,7 @@ interface CaptureDraft { text: string; attachments: AttachmentRef[]; preview: Ca
 const emptyDraft: CaptureDraft = { text: '', attachments: [], preview: null }
 export function CaptureComposer({ notify }: { notify: (s: string) => void }) {
   const [draft, setDraft] = useState<CaptureDraft>(emptyDraft), [loaded, setLoaded] = useState(false)
-  const [error, setError] = useState(''), [draftState, setDraftState] = useState(''), [busy, setBusy] = useState(false), [lastSource, setLastSource] = useState('')
+  const [error, setError] = useState(''), [draftState, setDraftState] = useState(''), [busy, setBusy] = useState(false), [choosing, setChoosing] = useState(false), [lastSource, setLastSource] = useState('')
   const current = useRef(draft); current.current = draft
   useEffect(() => { let alive = true; window.aia.drafts.get('home').then(raw => {
     if (!alive) return
@@ -29,7 +29,19 @@ export function CaptureComposer({ notify }: { notify: (s: string) => void }) {
     const timer = setTimeout(() => window.aia.drafts.save('home', JSON.stringify(draft)).then(() => setDraftState('草稿已保存到本机')).catch(e => setError(errorText(e))), 120)
     return () => clearTimeout(timer)
   }, [draft, loaded])
+  const previewMatches = !!draft.preview && draft.preview.rawText === draft.text && draft.preview.attachmentIds.join(',') === attachmentKey
+  function replaceAttachments(d: CaptureDraft, attachments: AttachmentRef[]): CaptureDraft {
+    const ids = attachments.map(a => a.id)
+    return { ...d, attachments, preview: d.preview ? { ...d.preview, attachmentIds: ids, entries: d.preview.entries.map(e => ({ ...e, record: { ...e.record, attachmentIds: ids } })) } : null }
+  }
+  async function chooseAttachments() {
+    if (busy || choosing) return
+    setChoosing(true)
+    try { const items = await window.aia.attachments.choose(); setDraft(d => replaceAttachments(d, [...d.attachments, ...items.filter(i => !d.attachments.some(a => a.id === i.id))])) }
+    catch (e) { setError(errorText(e)) } finally { setChoosing(false) }
+  }
   function updateEntry(index: number, fields: Record<string, unknown>) {
+    if (busy || choosing) return
     setDraft(d => d.preview ? { ...d, preview: { ...d.preview, entries: d.preview.entries.map((e, i) => {
       if (i !== index) return e
       const record = { ...e.record, ...fields }
@@ -38,7 +50,7 @@ export function CaptureComposer({ notify }: { notify: (s: string) => void }) {
     }) } } : d)
   }
   async function commit() {
-    const p = draft.preview; if (!p || p.rawText !== draft.text || busy) return
+    const p = draft.preview; if (!p || !previewMatches || busy || choosing) return
     setBusy(true); setError('')
     try {
       await window.aia.drafts.save('home', JSON.stringify(draft))
@@ -49,9 +61,9 @@ export function CaptureComposer({ notify }: { notify: (s: string) => void }) {
     } catch (e) { setError(errorText(e)) } finally { setBusy(false) }
   }
   async function undo() { try { await window.aia.capture.undo(lastSource); setLastSource(''); notify('已撤销这次归档，原始版本可恢复。') } catch (e) { setError(errorText(e)) } }
-  return <section className="capture-section"><h3>随手记</h3><div className="capture-box">
+  return <section className="capture-section"><h3>随手记</h3><div className="capture-box"><fieldset className="capture-editors" disabled={busy || choosing}>
     <textarea aria-label="随手记内容" placeholder="写下今天发生的事、想法，或接下来的安排…" value={draft.text} disabled={!loaded || busy} onChange={e => setDraft(d => ({ ...d, text: e.target.value }))}/>
-    {!!draft.attachments.length && <div className="attachment-chips">{draft.attachments.map(a => <span key={a.id}>{a.name}<button aria-label={'移除附件' + a.name} onClick={() => setDraft(d => ({ ...d, attachments: d.attachments.filter(x => x.id !== a.id) }))}><X size={12}/></button></span>)}</div>}
+    {!!draft.attachments.length && <div className="attachment-chips">{draft.attachments.map(a => <span key={a.id}>{a.name}<button aria-label={'移除附件' + a.name} onClick={() => setDraft(d => replaceAttachments(d, d.attachments.filter(x => x.id !== a.id)))}><X size={12}/></button></span>)}</div>}
     {draft.preview?.rawText === draft.text ? <div className="capture-items">{draft.preview.entries.map((e, i) => <fieldset key={e.record.id}><legend>事项 {i + 1}{e.pending ? ' · 待整理' : ''}</legend>
       <input aria-label={`事项${i + 1}标题`} value={e.record.title} onChange={v => updateEntry(i, { title: v.target.value })}/>
       <div className="preview-fields"><select aria-label={`事项${i + 1}分类`} value={e.record.module} onChange={v => updateEntry(i, { module: v.target.value as ModuleId })}>{Object.entries(moduleLabels).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
@@ -59,7 +71,7 @@ export function CaptureComposer({ notify }: { notify: (s: string) => void }) {
         <select aria-label={`事项${i + 1}性质`} value={e.record.role} onChange={v => updateEntry(i, { role: v.target.value })}><option value="actual">已发生</option><option value="plan">计划</option><option value="reference">参考</option></select></div><small>{e.basis}</small>
     </fieldset>)}</div> : <div className="capture-preview">写下原话，整理到合适的档案。</div>}
     {error && <p className="error" role="alert">{error}</p>}
-    <div className="capture-actions"><button className="text-button" onClick={() => window.aia.attachments.choose().then(items => setDraft(d => ({ ...d, attachments: [...d.attachments, ...items.filter(i => !d.attachments.some(a => a.id === i.id))] }))).catch(e => setError(errorText(e)))}><Paperclip size={20}/>添加附件</button>
-      <button className="primary" disabled={busy || !draft.preview || draft.preview.rawText !== draft.text} onClick={commit}>{busy ? '正在保存…' : '归档并同步'}</button></div>
-  </div><div className="capture-helper"><p className="helper">保留原文，可修改或撤销。{draft.text && draftState}</p>{lastSource && <button className="text-button" onClick={undo}><Undo2 size={16}/>撤销本次归档</button>}</div></section>
+    <div className="capture-actions"><button className="text-button" onClick={chooseAttachments}><Paperclip size={20}/>添加附件</button>
+      <button className="primary" disabled={busy || choosing || !previewMatches} onClick={commit}>{busy ? '正在保存…' : '归档并同步'}</button></div>
+  </fieldset></div><div className="capture-helper"><p className="helper">保留原文，可修改或撤销。{draft.text && draftState}</p>{lastSource && <button className="text-button" onClick={undo}><Undo2 size={16}/>撤销本次归档</button>}</div></section>
 }

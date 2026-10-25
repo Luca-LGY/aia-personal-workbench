@@ -6,10 +6,12 @@ import type { Services } from './services'
 import { SearchQuerySchema } from './indexing/query'
 import { CapturePreviewSchema } from '../shared/capture'
 import { ScheduleSchema } from '../shared/plans'
-export function registerIPC(s:Services){
+export function registerIPC(s:Services,options:{captureReplyDelayMs?:number}={}){
  const handle=(channel:string,fn:(...args:unknown[])=>unknown)=>ipcMain.handle(channel,(e:IpcMainInvokeEvent,...args:unknown[])=>{if(!BrowserWindow.fromWebContents(e.sender)||e.senderFrame!==e.sender.mainFrame)throw Error('Unauthorized IPC sender');return fn(...args)})
  const id=z.uuid(),hash=z.string().regex(/^[a-f0-9]{64}$/)
  const save=z.object({record:RecordSchema,expectedHash:hash.nullable()})
+ handle('diet:listDay',date=>s.diet.listDay(z.iso.date().parse(date)))
+ handle('diet:saveMeal',input=>s.diet.saveMeal(save.parse(input)))
  handle('research:listProjects',()=>s.research.listProjects())
  handle('research:getProject',i=>s.research.getProject(id.parse(i)))
  handle('research:saveProject',input=>s.research.saveProject(save.parse(input)))
@@ -26,7 +28,7 @@ export function registerIPC(s:Services){
  handle('records:remove',(i,h)=>s.repository.remove(id.parse(i),hash.parse(h)))
  handle('records:restore',i=>s.repository.restoreDeleted(id.parse(i)))
  handle('capture:preview',(text,attachments)=>s.capture.preview(z.string().max(100000).parse(text),z.array(z.string()).parse(attachments)))
- handle('capture:commit',p=>s.capture.commit(CapturePreviewSchema.parse(p)))
+ handle('capture:commit',async p=>{const result=await s.capture.commit(CapturePreviewSchema.parse(p));if(options.captureReplyDelayMs)await new Promise(resolve=>setTimeout(resolve,options.captureReplyDelayMs));return result})
  handle('capture:undo',i=>s.capture.undo(id.parse(i)))
  handle('plans:schedule',p=>s.plans.schedule(ScheduleSchema.parse(p)))
  handle('plans:listDay',date=>s.plans.listDay(z.iso.date().parse(date)))

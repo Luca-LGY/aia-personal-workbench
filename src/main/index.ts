@@ -15,7 +15,7 @@ mkdirSync(join(stateRoot,'cache'),{recursive:true});mkdirSync(archiveRoot,{recur
 const db=new Database(join(stateRoot,'cache','index.sqlite'))
 db.exec('CREATE TABLE IF NOT EXISTS app_metadata(key TEXT PRIMARY KEY,value TEXT); INSERT OR IGNORE INTO app_metadata VALUES(\'schema\',\'1\')')
 const services=await createServices(archiveRoot,stateRoot,db,()=>new Date(testMode&&process.env.AIA_NOW?process.env.AIA_NOW:Date.now()))
-registerIPC(services)
+registerIPC(services,{captureReplyDelayMs:testMode?Math.min(3000,Math.max(0,Number(process.env.AIA_TEST_CAPTURE_REPLY_DELAY)||0)):0})
 ipcMain.handle('aia:runtime',()=>({archiveRoot,stateRoot,now:testMode&&process.env.AIA_NOW?process.env.AIA_NOW:new Date().toISOString(),sqliteReady:!!db.prepare('SELECT value FROM app_metadata WHERE key=?').get('schema')}))
 const win=new BrowserWindow({width:1487,height:1058,useContentSize:true,title:'我的工作台',backgroundColor:'#FAF9F5',webPreferences:{preload:join(dir,'../preload/index.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}})
 win.webContents.setWindowOpenHandler(()=>({action:'deny'}))
