@@ -4,6 +4,7 @@ import { RecordSchema } from '../shared/schemas'
 import { MODULES,KINDS,type RecordFilter } from '../shared/models'
 import type { Services } from './services'
 import { SearchQuerySchema } from './indexing/query'
+import { CapturePreviewSchema } from '../shared/capture'
 export function registerIPC(s:Services){
  const handle=(channel:string,fn:(...args:unknown[])=>unknown)=>ipcMain.handle(channel,(e:IpcMainInvokeEvent,...args:unknown[])=>{if(!BrowserWindow.fromWebContents(e.sender)||e.senderFrame!==e.sender.mainFrame)throw Error('Unauthorized IPC sender');return fn(...args)})
  const id=z.uuid(),hash=z.string().regex(/^[a-f0-9]{64}$/)
@@ -12,6 +13,9 @@ export function registerIPC(s:Services){
  handle('records:save',input=>s.repository.save(z.object({record:RecordSchema,expectedHash:hash.nullable()}).parse(input)))
  handle('records:remove',(i,h)=>s.repository.remove(id.parse(i),hash.parse(h)))
  handle('records:restore',i=>s.repository.restoreDeleted(id.parse(i)))
+ handle('capture:preview',(text,attachments)=>s.capture.preview(z.string().max(100000).parse(text),z.array(z.string()).parse(attachments)))
+ handle('capture:commit',p=>s.capture.commit(CapturePreviewSchema.parse(p)))
+ handle('capture:undo',i=>s.capture.undo(id.parse(i)))
  handle('drafts:get',k=>s.drafts.load(z.string().regex(/^[\w-]+$/).parse(k)))
  handle('drafts:save',(k,t)=>s.drafts.save(z.string().regex(/^[\w-]+$/).parse(k),z.string().parse(t)))
  handle('attachments:choose',async()=>{const result=await dialog.showOpenDialog({properties:['openFile','multiSelections']});if(result.canceled)return[];return Promise.all(result.filePaths.map(p=>s.attachments.add(p)))})
