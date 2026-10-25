@@ -1,0 +1,12 @@
+appId: local.aia.workbench
+productName: 我的工作台
+directories:
+  output: dist
+files:
+  - out/**/*
+  - package.json
+asarUnpack:
+  - '**/*.node'
+mac:
+  target: dir
+  identity: null

@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+project_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+export PATH="$project_root/.tooling/node/bin:$PATH"
+exec "$project_root/.tooling/node/bin/node" "$project_root/.tooling/node/lib/node_modules/npm/bin/npm-cli.js" "$@"
