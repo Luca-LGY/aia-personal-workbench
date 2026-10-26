@@ -10,3 +10,4 @@ asarUnpack:
 mac:
   target: dir
   identity: null
+electronDist: node_modules/electron/dist

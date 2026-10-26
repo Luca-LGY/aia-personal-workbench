@@ -14,9 +14,10 @@
     "test:integration": "vitest run --project integration",
     "test:electron": "playwright test",
     "test:visual": "playwright test tests/electron/visual.spec.ts",
-    "test:all": "npm run typecheck && npm run lint && npm run test:unit && npm run test:integration && npm run build && npm run test:electron",
+    "test:all": "npm run typecheck && npm run lint && npm run test:unit && npm run test:integration && npm run package:mac && npm run test:electron",
     "package:mac": "npm run build && electron-builder --mac dir --arm64",
-    "postinstall": "electron-builder install-app-deps"
+    "postinstall": "electron-builder install-app-deps",
+    "test:package": "playwright test tests/electron/packaged-app.spec.ts"
   },
   "engines": {
     "node": ">=24.22.1 <25"

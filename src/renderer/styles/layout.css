@@ -25,3 +25,6 @@
 .backup-preview{border:1px solid var(--line);padding:18px;margin-top:18px;border-radius:10px}.backup-preview label{margin-bottom:14px}.backup-preview input{width:100%}
 
 .comparison-table{max-height:420px;overflow:auto}
+/* Keep the selected desktop composition visible after editable capture fields appear. */
+.topbar{padding-bottom:10px}.home-title{margin-top:10px;margin-bottom:32px}.home-title h2{font-size:40px}.capture-box{padding-top:16px}.capture-box textarea{min-height:130px}.capture-items fieldset{padding:9px;margin:8px 0}.capture-actions{margin-top:14px}.recent-section{margin-top:28px}.recent-row{padding:16px 0}.workspace{padding-bottom:100px}.sync-footer{position:fixed;left:260px;right:0;bottom:0;background:var(--bg);z-index:2;min-height:90px}
+@media(max-width:1200px){.sync-footer{left:215px}.home-title h2{font-size:34px}}

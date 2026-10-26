@@ -12,6 +12,7 @@ export async function launchTestApp(options: { archiveRoot?:string; stateRoot?:s
   if(options.background)env.AIA_TEST_BACKGROUND='1'
   if(options.githubAPI)env.AIA_TEST_GITHUB_API_BASE=options.githubAPI
   delete env.ELECTRON_RUN_AS_NODE
+  delete env.ELECTRON_RENDERER_URL
   if(options.captureReplyDelayMs)env.AIA_TEST_CAPTURE_REPLY_DELAY=String(options.captureReplyDelayMs)
   const app=await electron.launch({args:options.packaged?[]:[resolve('out/main/index.js')],...(options.packaged?{executablePath:options.packaged}:{}),env})
   const page=await app.firstWindow()

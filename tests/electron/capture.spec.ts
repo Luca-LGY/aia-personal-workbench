@@ -64,3 +64,12 @@ test('attachment changes preserve reviewed fields and IDs, and pending commit fr
     expect(r.record.date).toBe('2026-10-24')
   } finally { await t.close() }
 })
+
+test('a failed local transaction keeps capture text and reviewed fields, reports failure and permits retry',async()=>{
+ const t=await launchTestApp();const {rename,rm}=await import('node:fs/promises');const transactionDir=join(t.stateRoot,'state/transactions');try{
+  const text='今天早餐吃了鸡蛋';await t.page.getByLabel('随手记内容',{exact:true}).fill(text);await expect(t.page.getByLabel('事项1分类')).toHaveValue('diet');await t.page.getByLabel('事项1标题').fill('失败仍保留的早餐')
+  await rename(transactionDir,transactionDir+'.saved');await writeFile(transactionDir,'SYNTHETIC_DISK_FAILURE')
+  await t.page.getByRole('button',{name:'归档并同步',exact:true}).click();await expect(t.page.getByRole('alert')).toBeVisible();await expect(t.page.getByLabel('随手记内容',{exact:true})).toHaveValue(text);await expect(t.page.getByLabel('事项1标题')).toHaveValue('失败仍保留的早餐');await expect(t.page.getByRole('status',{name:'操作提示'}).filter({hasText:'已保存到本机'})).toHaveCount(0);expect(await t.page.evaluate(()=>window.aia.records.list({kind:'meal'}))).toHaveLength(0)
+  await rm(transactionDir);await rename(transactionDir+'.saved',transactionDir);await t.page.getByRole('button',{name:'归档并同步',exact:true}).click();await expect(t.page.getByRole('status',{name:'操作提示'})).toContainText('已保存到本机');expect((await t.page.evaluate(()=>window.aia.records.list({kind:'meal'})))[0].record.title).toBe('失败仍保留的早餐')
+ }finally{await t.close()}
+})
