@@ -2,7 +2,18 @@
 
 仅在自己电脑运行的工作与生活档案 APP。采用已确认的“随手记为主＋暖白松绿”界面；本地 Markdown、JSON 和附件是原件，SQLite 只是可重建的搜索索引。
 
-当前为 **0.1.0 本机候选版**。真实坚果云／GitHub 账号按用户要求稍后配置，真实整库迁移与原后台交接尚未执行，因此不宣称首版全部验收完成。详见 [验收矩阵](docs/acceptance/A01-A24.md)。
+当前为 **0.1.0 本机候选版**。GitHub 档案连接与真实同步已验证，210 个原始档案已核对并索引；重复保存连接和同步时间提示也已修正。坚果云、原目录接管与旧后台交接仍待配置和验收。详见 [真实同步记录](docs/acceptance/github-sync.md)、[状态提示修复](docs/acceptance/github-sync-status-fix.md) 和 [验收矩阵](docs/acceptance/A01-A24.md)。
+
+## 项目仓库
+
+应用源码保存在私有仓库 [Luca-LGY/aia-personal-workbench](https://github.com/Luca-LGY/aia-personal-workbench)，包含代码、需求与设计、测试、构建配置和完整提交历史。
+
+| 仓库 | 保存内容 | 使用位置 |
+| --- | --- | --- |
+| `aia-personal-workbench` | APP 代码、项目文档和开发历史 | 本项目的 Git 远端 |
+| `my-ai-archive` | 个人学习、科研、运动等档案 | APP“数据与设置”中的 GitHub 档案连接 |
+
+构建产物、依赖和工具缓存可按下方命令重新生成；个人档案及加密凭据保存在应用的数据目录，通过应用自己的备份与同步流程维护。
 
 ## 运行
 
