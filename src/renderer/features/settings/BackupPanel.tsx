@@ -1,0 +1,12 @@
+import { useState } from 'react'
+import { Download,FolderOpen } from 'lucide-react'
+import type { BackupPreview,RestoreReceipt } from '../../../shared/backup'
+import { errorText } from '../../hooks'
+export function BackupPanel({notify}:{notify:(s:string)=>void}){
+ const [preview,setPreview]=useState<(BackupPreview&{token:string})|null>(null),[result,setResult]=useState<(RestoreReceipt&{token:string})|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('')
+ async function run(work:()=>Promise<void>){setBusy(true);setError('');try{await work()}catch(e){setError(errorText(e))}finally{setBusy(false)}}
+ return<section aria-label="完整备份与恢复"><h3>完整备份与恢复</h3><p className="helper">将档案、原文、附件、草稿和必要同步历史保存成独立备份。恢复时创建一个新目录。</p>{error&&<p role="alert" className="error">{error}</p>}<div className="form-actions"><button className="outline" disabled={busy} onClick={()=>run(async()=>{const receipt=await window.aia.backup.export();if(receipt)notify('完整备份已保存：'+receipt.file+' · '+receipt.files+' 个文件')})}><Download size={17}/>导出完整备份</button><button className="outline" disabled={busy} onClick={()=>run(async()=>{const next=await window.aia.backup.inspect();if(next){setPreview(next);setResult(null)}})}><FolderOpen size={17}/>检查备份文件</button>{busy&&<span role="status" aria-label="备份操作状态">正在校验与保存…</span>}</div>
+  {preview&&<section className="backup-preview" aria-label="备份检查结果"><h4>校验通过</h4><p className="file-location">{preview.file}</p><p>{new Date(preview.createdAt).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'})} · {preview.entries.length} 个文件 · {preview.records.length} 条档案 · {preview.attachments.length} 个附件</p><p className="helper">排除：{preview.excluded.join('、')}</p>{preview.notes.map((n,i)=><p className="helper" key={i}>{n}</p>)}<button className="primary" disabled={busy} onClick={()=>run(async()=>{const restored=await window.aia.backup.restore(preview.token);if(restored){setResult(restored);notify('已在新目录恢复，发布已暂停。')}})}>恢复到新目录</button></section>}
+  {result&&<section className="backup-preview" aria-label="恢复结果"><h4>恢复完成，发布已暂停</h4><p>已恢复 {result.files} 个文件。切换后先重新连接并比较云端，再选择如何继续合并。</p><label>恢复档案目录<input aria-label="恢复档案目录" readOnly value={result.archiveRoot}/></label><label>恢复状态目录<input aria-label="恢复状态目录" readOnly value={result.stateRoot}/></label><button className="outline" disabled={busy} onClick={()=>run(async()=>{const response=await window.aia.backup.activate(result.token);notify(response.restarting?'正在重新打开恢复后的档案。':'已保存档案位置，下次启动使用恢复后的档案。')})}>使用此恢复档案</button></section>}
+ </section>
+}

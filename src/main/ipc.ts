@@ -1,4 +1,5 @@
-import { ipcMain,BrowserWindow,dialog,shell,type IpcMainInvokeEvent } from 'electron'
+import { join } from 'node:path'
+import { ipcMain,BrowserWindow,dialog,shell,app,type IpcMainInvokeEvent } from 'electron'
 import { z } from 'zod'
 import { RecordSchema } from '../shared/schemas'
 import { MODULES,KINDS,type RecordFilter } from '../shared/models'
@@ -11,12 +12,18 @@ import { ConnectionInputSchema } from './connections/settings'
 import { atomicWrite } from './archive/transactions'
 export function registerIPC(s:Services,options:{captureReplyDelayMs?:number}={}){
  const pending=new Set<Promise<unknown>>();let accepting=true
- const handle=(channel:string,fn:(...args:unknown[])=>unknown)=>ipcMain.handle(channel,(e:IpcMainInvokeEvent,...args:unknown[])=>{if(!BrowserWindow.fromWebContents(e.sender)||e.senderFrame!==e.sender.mainFrame)throw Error('Unauthorized IPC sender');if(!accepting)throw Error('APP正在退出，请稍后重新打开');const work=Promise.resolve().then(()=>fn(...args));pending.add(work);void work.then(()=>pending.delete(work),()=>pending.delete(work));return work})
+ const handle=(channel:string,fn:(...args:unknown[])=>unknown)=>ipcMain.handle(channel,(e:IpcMainInvokeEvent,...args:unknown[])=>{if(!BrowserWindow.fromWebContents(e.sender)||e.senderFrame!==e.sender.mainFrame)throw Error('Unauthorized IPC sender');if(!accepting)throw Error('APP正在退出，请稍后重新打开');const work=Promise.resolve().then(()=>channel.startsWith('backup:')?fn(...args):s.gate.run(async()=>fn(...args)));pending.add(work);void work.then(()=>pending.delete(work),()=>pending.delete(work));return work})
  const id=z.uuid(),hash=z.string().regex(/^[a-f0-9]{64}$/)
  const save=z.object({record:RecordSchema,expectedHash:hash.nullable()})
  const endpoint=z.enum(['webdav','github'])
+ const previews=new Map<string,import('../shared/backup').BackupPreview>(),restored=new Map<string,import('../shared/backup').RestoreReceipt>()
+ handle('backup:export',async()=>{const result=await dialog.showSaveDialog({defaultPath:'AIA-完整备份-'+new Date().toISOString().slice(0,10)+'.zip',filters:[{name:'ZIP备份',extensions:['zip']}]});if(result.canceled||!result.filePath)return null;return s.backup.export(result.filePath)})
+ handle('backup:inspect',async()=>{const result=await dialog.showOpenDialog({properties:['openFile'],filters:[{name:'ZIP备份',extensions:['zip']}]});if(result.canceled||!result.filePaths[0])return null;const preview=await s.backup.inspect(result.filePaths[0]),token=crypto.randomUUID();previews.set(token,preview);return{...preview,token}})
+ handle('backup:restore',async i=>{const preview=previews.get(id.parse(i));if(!preview)throw Error('请重新选择并检查备份文件');const result=await dialog.showOpenDialog({properties:['openDirectory','createDirectory']});if(result.canceled||!result.filePaths[0])return null;const target=join(result.filePaths[0],'AIA-恢复-'+new Date().toISOString().replaceAll(':','-')+'-'+crypto.randomUUID().slice(0,8)),receipt=await s.backup.restore(preview.file,target,preview.fingerprint),token=crypto.randomUUID();restored.set(token,receipt);return{...receipt,token}})
+ handle('backup:activate',async i=>{const target=restored.get(id.parse(i));if(!target)throw Error('请选择本次已校验的恢复结果');await s.workspace.select(target);if(process.env.AIA_TEST_MODE!=='1')setTimeout(()=>{app.relaunch();app.quit()},100);return{restarting:process.env.AIA_TEST_MODE!=='1'}})
  handle('sync:getState',()=>s.coordinator.getState())
  handle('sync:run',()=>s.coordinator.run('manual'))
+ handle('sync:resumeRestored',i=>s.coordinator.resumeRestored(hash.parse(i)))
  handle('sync:candidate',(c,n)=>s.coordinator.candidate(hash.parse(c),hash.parse(n)))
  handle('sync:resolve',p=>s.coordinator.resolveConflict(z.object({path:z.string().min(1),conflictId:hash,nodeId:hash.nullable(),text:z.string().max(1000000).optional(),keepBoth:z.boolean().optional()}).parse(p)))
  s.coordinator.onChange(()=>{for(const w of BrowserWindow.getAllWindows())w.webContents.send('sync:change')})

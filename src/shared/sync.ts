@@ -23,5 +23,6 @@ export interface SyncPlan {
 export type SyncReason='startup'|'manual'|'timer'|'local-change'
 export type SyncPhase='idle'|'scanning'|'planning'|'applying'|'publishing'|'verifying'|'synced'|'pending'|'conflict'|'suspended'|'setup_required'
 export interface SyncEndpointState{id:EndpointId;namespace:string;configRevision:number;phase:'idle'|'synced'|'pending'|'unauthorized'|'rate_limited'|'incomplete';lastAttemptAt:string|null;lastComparedAt:string|null;lastSuccessAt:string|null;lastUploadedAt:string|null;pending:number;blockedUntil:number;authBlockedRevision?:number;failures:number;error?:string;errorCode?:string}
-export interface SyncState{schemaVersion:1;phase:SyncPhase;lastRunAt:string|null;localSavedAt:string|null;setupRequired:boolean;publishSuspended:boolean;endpoints:Partial<Record<EndpointId,SyncEndpointState>>;conflicts:SyncConflict[];changes:{path:string;target:string;action:string;at:string}[];warnings:string[]}
+export interface SyncComparison{id:string;at:string;complete:boolean;files:{path:string;target:string;action:string}[];conflicts:number}
+export interface SyncState{schemaVersion:1;phase:SyncPhase;lastRunAt:string|null;localSavedAt:string|null;setupRequired:boolean;publishSuspended:boolean;endpoints:Partial<Record<EndpointId,SyncEndpointState>>;conflicts:SyncConflict[];changes:{path:string;target:string;action:string;at:string}[];warnings:string[];comparison?:SyncComparison}
 export interface ResolveConflictInput{path:string;conflictId:string;nodeId:string|null;text?:string;keepBoth?:boolean}
