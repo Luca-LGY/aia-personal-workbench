@@ -8,9 +8,10 @@ import { stableDocumentId,type IdentityMap } from './identity-map'
 import { makeRecord,localDate } from '../../shared/schemas'
 import type { RecordView } from '../../shared/api'
 import type { ModuleId } from '../../shared/models'
+import { ArchivePolicy } from './policy'
 export interface ImportIssue {code:string;path:string;message:string}
 export interface ImportReport {complete:boolean;views:RecordView[];issues:ImportIssue[];files:number}
-export function moduleForPath(path:string):ModuleId{if(path.startsWith('每日记录/学习数据'))return'learning';if(path.startsWith('每日记录/科研实验'))return'research';if(path.startsWith('运动/'))return'sports';if(/^(饮食|饮食记录)/.test(path))return'diet';if(/^(游戏|娱乐)/.test(path))return'games';if(path.startsWith('开发工作/'))return'development';return'inbox'}
+export function moduleForPath(path:string):ModuleId{if(/^(每日记录\/)?学习数据\//.test(path))return'learning';if(/^(每日记录\/)?科研实验\//.test(path))return'research';if(path.startsWith('运动/'))return'sports';if(/^(饮食|饮食记录)/.test(path))return'diet';if(/^(游戏|娱乐)/.test(path))return'games';if(path.startsWith('开发工作/'))return'development';return'inbox'}
 export class LegacyImporter{
  constructor(readonly root:string,readonly stateRoot:string,readonly readOnly=false){}
  async scan():Promise<ImportReport>{
@@ -19,7 +20,7 @@ export class LegacyImporter{
   const catPath=join(this.root,'.aia','catalog.json'),cat=await readMaybe(catPath),archiveId=cat?(JSON.parse(cat.toString())as{archiveId:string}).archiveId:this.readOnly?stableDocumentId('preview',this.root):randomUUID()
   if(!cat&&!this.readOnly)await atomicWrite(catPath,JSON.stringify({archiveId,schemaVersion:1}))
   const mapPath=join(this.root,'.aia','identities','files.json'),oldBytes=await readMaybe(mapPath),old:IdentityMap=oldBytes?JSON.parse(oldBytes.toString()):{}
-  let paths:string[];try{paths=await walkFiles(this.root)}catch(e){return{complete:false,views:[],issues:[{code:'scan-error',path:'',message:String(e)}],files:0}}
+  let paths:string[];try{const policy=await ArchivePolicy.open(this.root);paths=(await walkFiles(this.root)).filter(p=>!policy.excluded(p))}catch(e){return{complete:false,views:[],issues:[{code:'scan-error',path:'',message:String(e)}],files:0}}
   const pathSet=new Set(paths),next:IdentityMap=Object.fromEntries(Object.entries(old).map(([p,v])=>[p,{...v,present:false}]))
   const items=[]
   for(const path of paths){try{const bytes=await readFile(join(this.root,path)),metadata=await stat(join(this.root,path)),p=path.endsWith('.md')?parseDocument(bytes,path):null;items.push({path,bytes,metadata,p,hash:hashBytes(bytes)})}catch(e){complete=false;issues.push({code:'read-error',path,message:String(e)})}}

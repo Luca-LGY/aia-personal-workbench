@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3'
-import type { LegacyImporter } from '../archive/importer'
+import type { LegacyImporter,ImportReport } from '../archive/importer'
 import type { RecordView } from '../../shared/api'
 import type { RecordFilter } from '../../shared/models'
 import type { SearchQuery,SearchPage,IndexReport } from '../../shared/search'
@@ -12,7 +12,7 @@ import { hashBytes } from '../archive/codec'
 interface Row {id:string;path:string;hash:string;title:string;body:string;module:SearchPage['items'][number]['module'];kind:SearchPage['items'][number]['kind'];date:string;search_text:string;json:string}
 export class SearchService{
  private generation=1;private indexed=0;private work:Promise<void>|null=null;private report:IndexReport={documents:0,complete:false,issues:[]}
- constructor(readonly db:Database.Database,readonly importer:LegacyImporter){initializeIndex(db)}
+ constructor(readonly db:Database.Database,readonly importer:LegacyImporter,initial?:ImportReport){initializeIndex(db);if(initial){updateProjection(db,initial);this.report={documents:initial.views.length,complete:initial.complete,issues:initial.issues};this.indexed=this.generation}}
  invalidate(){this.generation++}
  private async ensure(){while(this.indexed<this.generation){if(this.work){await this.work;continue}const g=this.generation;this.work=(async()=>{const report=await this.importer.scan();updateProjection(this.db,report);this.report={documents:report.views.length,complete:report.complete,issues:report.issues};this.indexed=g})().finally(()=>{this.work=null});await this.work}}
  async rebuild(){this.db.exec('DELETE FROM documents');this.invalidate();await this.ensure();return this.report}

@@ -26,6 +26,7 @@
     "chokidar": "6.0.0",
     "diff3": "0.0.4",
     "fast-xml-parser": "5.11.2",
+    "ignore": "5.3.2",
     "lucide-react": "1.61.0",
     "proper-lockfile": "4.1.2",
     "react": "19.3.1",

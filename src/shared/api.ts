@@ -8,11 +8,15 @@ import type { HomeOverview,AdvicePreview,AdoptAdvice } from './reports'
 import type { ConfigureConnection,ConnectionState,EndpointId,CloudInspection } from './connections'
 import type { SyncState,ResolveConflictInput } from './sync'
 import type { BackupPreview,BackupReceipt,RestoreReceipt } from './backup'
+import type { SourcePreview } from './setup'
+import type { MigrationManifest,MigrationReceipt } from './migration'
 export interface RuntimeInfo {archiveRoot:string;stateRoot:string;sqliteReady:boolean;now:string}
 export interface RecordView {record:RecordEnvelope;path:string;hash:string}
 export interface AiaAPI {
  runtime():Promise<RuntimeInfo>
  onWake(listener:()=>void):()=>void
+ setup:{inspectSource():Promise<SourcePreview|null>;refreshSource(id:string):Promise<SourcePreview>;backupSource(id:string):Promise<BackupReceipt|null>;attachSource(id:string):Promise<{archiveRoot:string;stateRoot:string;restarting:boolean}>;enable(comparisonId:string):Promise<SyncState>}
+ migration:{preview(target:EndpointId):Promise<MigrationManifest>;run(id:string):Promise<MigrationReceipt>;list():Promise<MigrationManifest[]>}
  backup:{export():Promise<BackupReceipt|null>;inspect():Promise<(BackupPreview&{token:string})|null>;restore(token:string):Promise<(RestoreReceipt&{token:string})|null>;activate(token:string):Promise<{restarting:boolean}>}
  sync:{getState():Promise<SyncState>;run():Promise<SyncState>;resumeRestored(comparisonId:string):Promise<SyncState>;candidate(conflictId:string,nodeId:string):Promise<{text:string|null;binary:boolean;size:number}>;resolve(input:ResolveConflictInput):Promise<{nodeId:string}>;onChange(listener:()=>void):()=>void}
  records:{list(filter?:RecordFilter):Promise<RecordView[]>;get(id:string):Promise<RecordView|null>;save(input:SaveRecord):Promise<RecordEnvelope>;remove(id:string,hash:string):Promise<DeletionReceipt>;restore(id:string):Promise<RecordEnvelope|null>}

@@ -2,6 +2,8 @@ import { contextBridge,ipcRenderer } from 'electron'
 import type { AiaAPI } from '../shared/api'
 const api:AiaAPI={
  runtime:()=>ipcRenderer.invoke('aia:runtime'),
+ setup:{inspectSource:()=>ipcRenderer.invoke('setup:inspectSource'),refreshSource:id=>ipcRenderer.invoke('setup:refreshSource',id),backupSource:id=>ipcRenderer.invoke('setup:backupSource',id),attachSource:id=>ipcRenderer.invoke('setup:attachSource',id),enable:id=>ipcRenderer.invoke('setup:enable',id)},
+ migration:{preview:target=>ipcRenderer.invoke('migration:preview',target),run:id=>ipcRenderer.invoke('migration:run',id),list:()=>ipcRenderer.invoke('migration:list')},
  backup:{export:()=>ipcRenderer.invoke('backup:export'),inspect:()=>ipcRenderer.invoke('backup:inspect'),restore:token=>ipcRenderer.invoke('backup:restore',token),activate:token=>ipcRenderer.invoke('backup:activate',token)},
  sync:{resumeRestored:id=>ipcRenderer.invoke('sync:resumeRestored',id),getState:()=>ipcRenderer.invoke('sync:getState'),run:()=>ipcRenderer.invoke('sync:run'),candidate:(id,node)=>ipcRenderer.invoke('sync:candidate',id,node),resolve:p=>ipcRenderer.invoke('sync:resolve',p),onChange:listener=>{const f=()=>listener();ipcRenderer.on('sync:change',f);return()=>{ipcRenderer.removeListener('sync:change',f)}}},
  onWake:listener=>{const f=()=>listener();ipcRenderer.on('aia:wake',f);return()=>{ipcRenderer.removeListener('aia:wake',f)}},

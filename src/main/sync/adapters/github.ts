@@ -11,7 +11,7 @@ import { SyncError } from '../errors'
 import { RequestBudget } from '../request-budget'
 import { responseChunks,type SyncObjectStore } from '../streams'
 import type { Transport,RequestOptions } from '../transport'
-interface Options{owner:string;repo:string;branch:string;getSecret():Promise<string>;stateRoot:string;objectStore:SyncObjectStore;budget:RequestBudget;apiBase?:string;allowTestHTTP?:boolean;transport?:Transport;knownHead?:()=>Promise<string|undefined>}
+interface Options{includePath?:(path:string)=>boolean|Promise<boolean>;owner:string;repo:string;branch:string;getSecret():Promise<string>;stateRoot:string;objectStore:SyncObjectStore;budget:RequestBudget;apiBase?:string;allowTestHTTP?:boolean;transport?:Transport;knownHead?:()=>Promise<string|undefined>}
 interface TreeRow{path:string;type:string;mode:string;sha:string;size?:number}
 interface Commit{sha:string;tree:{sha:string};parents:{sha:string}[]}
 interface Pending{fingerprint:string;parent:string;tree:string;commitBody:Record<string,unknown>;commit?:string;published?:boolean}
@@ -56,10 +56,10 @@ export class GithubAdapter implements EndpointAdapter{
   let recordId:string|undefined;try{const match=prefix.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/),meta=match?parse(match[1]):null;if(typeof meta?.aia_id==='string')recordId=meta.aia_id}catch{/* ordinary Markdown */}
   const result={path:row.path,revision:row.sha,hash:value.hash,size,writeSafe:true,...(recordId?{recordId}:{})};this.cache[row.sha]=result;return result
  }
- private async snapshot(head:string){const commit=await this.commit(head),warnings:string[]=[],entries:RemoteEntry[]=[],modes:Record<string,string>={};let rows:TreeRow[]=[]
+ private async snapshot(head:string){const commit=await this.commit(head),warnings:string[]=[],excludedPaths:string[]=[],entries:RemoteEntry[]=[],modes:Record<string,string>={};let rows:TreeRow[]=[]
   try{rows=await this.rows(commit.tree.sha)}catch(e){if(e instanceof SyncError&&e.code==='incomplete')warnings.push(e.message);else throw e}
-  const seen=new Set<string>();for(const row of rows){if(row.type==='tree')continue;try{this.path(row.path);if(seen.has(row.path))throw new SyncError('incomplete','重复路径');seen.add(row.path);if(row.type!=='blob'||!['100644','100755'].includes(row.mode))throw new SyncError('unsupported','符号链接或子模块尚不支持');entries.push(await this.blob(row));modes[row.path]=row.mode}catch(e){if(e instanceof SyncError&&['unsupported','incomplete'].includes(e.code))warnings.push(row.path+'：'+e.message);else throw e}}
-  return {scan:{complete:!warnings.length,rootExists:true,revision:head,entries,warnings} as ScanResult,tree:commit.tree.sha,modes}
+  const seen=new Set<string>();for(const row of rows){if(row.type==='tree')continue;if(this.c.includePath&&!await this.c.includePath(row.path)){excludedPaths.push(row.path);continue}try{this.path(row.path);if(seen.has(row.path))throw new SyncError('incomplete','重复路径');seen.add(row.path);if(row.type!=='blob'||!['100644','100755'].includes(row.mode))throw new SyncError('unsupported','符号链接或子模块尚不支持');entries.push(await this.blob(row));modes[row.path]=row.mode}catch(e){if(e instanceof SyncError&&['unsupported','incomplete'].includes(e.code))warnings.push(row.path+'：'+e.message);else throw e}}
+  return {scan:{complete:!warnings.length,rootExists:true,revision:head,entries,warnings,excludedPaths} as ScanResult,tree:commit.tree.sha,modes}
  }
  scan(){return this.queue(async()=>{await this.load();const head=await this.head(),v=await this.snapshot(head),known=await this.c.knownHead?.()??this.lastHead;if(known&&known!==head&&!await this.contains(known,head)){v.scan.historyRewritten=true;v.scan.warnings!.push('GitHub 分支历史被改写，旧基线不能作为共同祖先')}
   this.lastComplete=v.scan.complete;if(v.scan.complete)this.lastHead=head;await this.persist();return v.scan})}
@@ -78,7 +78,7 @@ export class GithubAdapter implements EndpointAdapter{
   const save=async()=>atomicWrite(this.pendingPath(batch.id),JSON.stringify(pending))
   try{
    if(!pending){const head=await this.head();if(head!==batch.scanRevision)throw new SyncError('conflict','远端分支已经前进，请重新比较');const meta=await this.json<{permissions?:{push?:boolean}}>(this.repo());if(!meta.permissions?.push)throw new SyncError('unauthorized','仓库缺少写入权限');const current=await this.snapshot(head);if(!current.scan.complete)throw new SyncError('incomplete','当前树不完整')
-    const tree:TreeRow[]=[];for(const c of batch.changes){this.path(c.path);const old=current.scan.entries.find(e=>e.path===c.path);if(c.expected.type==='absent'?!!old:(!old||old.revision!==c.expected.revision||old.hash!==c.expected.hash))throw new SyncError('conflict','云端文件版本已改变');tree.push({path:c.path,mode:current.modes[c.path]??'100644',type:'blob',sha:c.objectHash?await this.upload(c.objectHash):null as unknown as string})}
+    const tree:TreeRow[]=[];for(const c of batch.changes){this.path(c.path);if(this.c.includePath&&!await this.c.includePath(c.path))throw new SyncError('unsupported','路径已被档案规则排除，请重新比较');const old=current.scan.entries.find(e=>e.path===c.path);if(c.expected.type==='absent'?!!old:(!old||old.revision!==c.expected.revision||old.hash!==c.expected.hash))throw new SyncError('conflict','云端文件版本已改变');tree.push({path:c.path,mode:current.modes[c.path]??'100644',type:'blob',sha:c.objectHash?await this.upload(c.objectHash):null as unknown as string})}
     const result=await this.json<{sha:string}>(this.repo()+'/git/trees','POST',{base_tree:current.tree,tree}),user=await this.json<{id:number;login:string;name?:string} >('/user'),date=new Date().toISOString(),identity={name:user.name||user.login,email:`${user.id}+${user.login}@users.noreply.github.com`,date}
     if(!Number.isSafeInteger(user.id)||!user.login)throw new SyncError('unsupported','无法核对提交身份')
     pending={fingerprint:digest(JSON.stringify(batch)),parent:head,tree:result.sha,commitBody:{tree:result.sha,parents:[head],message:'AIA archive sync '+batch.id,author:identity,committer:identity}};await save()

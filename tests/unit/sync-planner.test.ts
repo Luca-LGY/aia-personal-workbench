@@ -113,3 +113,6 @@ test('rewriting GitHub to an empty tree cannot reuse first-time empty initializa
 test('an unrelated file change does not invalidate unchanged conflict candidates',()=>{
  const input=setup({'a.md':'base'});change(input,'local',{'a.md':'local'});change(input,'github',{'a.md':'cloud'});const first=planSync(input);input.graph=first.graph;change(input,'local',{'a.md':'local','unrelated.md':'new'});input.local.revision='only-unrelated-file-changed';const second=planSync(input);expect(second.conflicts.find(c=>c.path==='a.md')?.id).toBe(first.conflicts.find(c=>c.path==='a.md')?.id)
 })
+test('files newly excluded from the archive scope are retained on cloud rather than interpreted as deletions',()=>{
+ const input=setup({'a.md':'protected after rule change'});input.local=scan({});input.local.excludedPaths=['a.md'];const plan=planSync(input);expect(plan.batches.every(b=>!b.changes.length)).toBe(true);expect(plan.localChanges).toHaveLength(0)
+})

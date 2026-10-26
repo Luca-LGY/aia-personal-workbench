@@ -15,7 +15,7 @@ import type { Transport, RequestOptions } from '../transport'
 const object = (v: unknown): Record<string, unknown> => v && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, unknown> : {}
 const array = (v: unknown): unknown[] => v === undefined ? [] : Array.isArray(v) ? v : [v]
 const strong = (v: string) => /^"[^"\r\n]*"$/.test(v)
-interface DavOptions { url: string; username: string; getSecret(): Promise<string>; allowTestHTTP?: boolean; stateRoot: string; objectStore: SyncObjectStore; budget: RequestBudget; capabilities: CapabilityReport; transport?: Transport; clock?: SyncClock; requestTimeoutMs?: number; listingLimit?: number;knownPaths?:()=>Promise<string[]> }
+interface DavOptions { includePath?:(path:string)=>boolean|Promise<boolean>; url: string; username: string; getSecret(): Promise<string>; allowTestHTTP?: boolean; stateRoot: string; objectStore: SyncObjectStore; budget: RequestBudget; capabilities: CapabilityReport; transport?: Transport; clock?: SyncClock; requestTimeoutMs?: number; listingLimit?: number;knownPaths?:()=>Promise<string[]> }
 interface DavMetadata { path: string; revision: string; size: number }
 export class WebdavAdapter implements EndpointAdapter {
   readonly id = 'webdav' as const; readonly namespace: string; private base: URL; private clock: SyncClock; private transport: Transport
@@ -93,16 +93,16 @@ export class WebdavAdapter implements EndpointAdapter {
     return array(object(parsed.multistatus).response).some(raw=>{const r=object(raw);if(typeof r.href!=='string')return false;try{return this.relative(new URL(r.href,this.base))===''&&array(r.propstat).some(p=>{const s=object(p);return /\s200(?:\s|$)/.test(String(s.status))&&Object.hasOwn(object(object(s.prop).resourcetype),'collection')})}catch{return false}})
   }
   scan():Promise<ScanResult>{return this.queue(async()=>{
-    this.lastComplete=false;await this.loadCache();const known=new Set([...Object.keys(this.cache),...await this.c.knownPaths?.()??[]]),queue=[''],visited=new Set<string>(),metadata=new Map<string,DavMetadata>(),warnings:string[]=[];let complete=true,rootExists=true
+    this.lastComplete=false;await this.loadCache();const known=new Set([...Object.keys(this.cache),...await this.c.knownPaths?.()??[]]),queue=[''],visited=new Set<string>(),metadata=new Map<string,DavMetadata>(),warnings:string[]=[],excludedPaths:string[]=[];let complete=true,rootExists=true
     this.knownDirs=new Set([''])
     while(queue.length){const directory=queue.shift()!;if(visited.has(directory)){complete=false;warnings.push('文件夹重复或循环');continue}visited.add(directory)
       const result=await this.directory(directory);if(directory==='')rootExists=result.exists;complete&&=result.complete;warnings.push(...result.warnings.map(w=>directory+': '+w))
-      for(const d of result.dirs){if(this.knownDirs.has(d)){complete=false;warnings.push('文件夹重复：'+d)}else{this.knownDirs.add(d);queue.push(d)}}
+      for(const d of result.dirs){if(this.c.includePath&&!await this.c.includePath(d)){excludedPaths.push(d);continue}if(this.knownDirs.has(d)){complete=false;warnings.push('文件夹重复：'+d)}else{this.knownDirs.add(d);queue.push(d)}}
       for(const file of result.files){if(metadata.has(file.path)){complete=false;warnings.push('分页包含重复文件：'+file.path)}else metadata.set(file.path,file)}
     }
     const absent:string[]=[]
     if(complete)for(const path of known){
-      if(metadata.has(path))continue
+      if(this.c.includePath&&!await this.c.includePath(path)){excludedPaths.push(path);continue}if(metadata.has(path))continue
       if(this.knownDirs.has(path+'/')){complete=false;warnings.push('旧文件路径变为文件夹，请核对：'+path);continue}
       const head=await this.request(this.url(path),'HEAD')
       if(head.status===404){await head.body?.cancel();absent.push(path);continue}
@@ -113,6 +113,7 @@ export class WebdavAdapter implements EndpointAdapter {
     if(absent.length){if(!await this.rootValid()){rootExists=false;complete=false;warnings.push('档案根目录无法确认，未传播删除')}else{for(const path of absent)delete this.cache[path];await atomicWrite(this.cachePath(),JSON.stringify(this.cache))}}
     const entries:RemoteEntry[]=[]
     for(const meta of metadata.values()){
+      if(this.c.includePath&&!await this.c.includePath(meta.path)){excludedPaths.push(meta.path);continue}
       const cached=this.cache[meta.path]
       if(strong(meta.revision)&&cached?.revision===meta.revision&&cached.writeSafe&&(meta.size<0||meta.size===cached.size)&&await this.c.objectStore.hasObject(cached.hash)){entries.push(cached);continue}
       if(!complete)continue
@@ -120,7 +121,7 @@ export class WebdavAdapter implements EndpointAdapter {
       catch(e){if(e instanceof SyncError&&['unauthorized','rate_limited','quota','offline'].includes(e.code))throw e;complete=false;warnings.push('文件版本无法完整核对：'+meta.path)}
     }
     entries.sort((a,b)=>a.path.localeCompare(b.path));this.lastComplete=complete&&rootExists
-    return{complete:this.lastComplete,rootExists,entries,revision:digest(JSON.stringify(entries.map(e=>[e.path,e.hash,e.revision]))),warnings}
+    return{complete:this.lastComplete,rootExists,entries,revision:digest(JSON.stringify(entries.map(e=>[e.path,e.hash,e.revision]))),warnings,excludedPaths}
   })}
   private async parents(path:string){const parts=path.split('/');parts.pop();let parent='';for(const part of parts){parent+=part+'/';if(this.knownDirs.has(parent))continue;const r=await this.request(this.url(parent),'MKCOL',{'If-None-Match':'*'});await r.body?.cancel();if(![201,405,412].includes(r.status))throw new SyncError('not_found','云端父目录不可用，未重建档案根目录');this.knownDirs.add(parent)}}
   private async verify(change:RemoteChange):Promise<EndpointReceipt['items'][number]>{
@@ -138,7 +139,7 @@ export class WebdavAdapter implements EndpointAdapter {
     for(const change of batch.changes){let accepted=false
       if(stopped){result.items.push({operationId:change.operationId,path:change.path,status:'failed',error:'未尝试：'+stopped.message});continue}
       try{
-        this.path(change.path);if(change.path.endsWith('/')||this.knownDirs.has(change.path+'/'))throw new SyncError('unsupported','仅允许对档案文件进行条件操作')
+        this.path(change.path);if(this.c.includePath&&!await this.c.includePath(change.path))throw new SyncError('unsupported','路径已被档案规则排除，请重新比较');if(change.path.endsWith('/')||this.knownDirs.has(change.path+'/'))throw new SyncError('unsupported','仅允许对档案文件进行条件操作')
         if(change.expected.type==='present'&&(!strong(change.expected.revision)||this.cache[change.path]?.writeSafe===false))throw new SyncError('unsupported','文件缺少可用于条件操作的强ETag')
         const headers:Record<string,string>=change.expected.type==='absent'?{'If-None-Match':'*'}:{'If-Match':change.expected.revision}
         let body:(()=>RequestOptions['body'])|undefined

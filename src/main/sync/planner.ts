@@ -13,6 +13,7 @@ export function planSync(input: SyncInput): SyncPlan {
   const paths = new Set([...local.keys(), ...Object.keys(input.localHeads), ...endpoints.flatMap(e => [...e.files.keys(), ...Object.keys(e.base?.entries ?? {})])])
   for (const e of endpoints) if (!complete(e.snapshot)) plan.warnings.push(e.id + '扫描未知或不完整，禁用本轮发布和基线推进')
   const deletedIds = new Set(input.deletedRecordIds ?? [])
+  const excluded=new Set([...(input.local.excludedPaths??[]),...input.endpoints.flatMap(e=>e.snapshot?.excludedPaths??[])])
   function observe(path: string, row: RemoteEntry | undefined, baseId: string | undefined, available: boolean, source: string, namespace?: string): { candidate?: Candidate; resurrection: boolean } {
     const base = baseId ? graph[baseId] : undefined
     if (!row && !available) return { resurrection: false }
@@ -29,6 +30,7 @@ export function planSync(input: SyncInput): SyncPlan {
     plan.conflicts.push(value)
   }
   for (const path of [...paths].sort()) {
+    if(excluded.has(path))continue
     const observations = [observe(path, local.get(path), input.localHeads[path], complete(input.local), 'local'), ...endpoints.map(e => observe(path, e.files.get(path), e.base?.entries[path]?.nodeId, complete(e.snapshot), e.id, e.namespace))]
     const candidates = observations.flatMap(o => o.candidate ? [o.candidate] : [])
     if (!candidates.length) continue

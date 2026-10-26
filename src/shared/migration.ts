@@ -1,0 +1,3 @@
+import type { EndpointId } from './connections'
+export interface MigrationManifest{id:string;schemaVersion:1;archiveId:string;sourceRoot:string;sourceFingerprint:string;target:EndpointId;namespace:string;configRevision:number;targetRevision:string;createdAt:string;executable:boolean;completeSource:boolean;files:{path:string;size:number;sourceHash:string;targetHash:string|null;targetRevision:string|null;state:'same'|'pending'|'conflict'|'confirmed'}[];excluded:{path:string;reason:string}[];confirmed:Record<string,{hash:string;revision:string|null}>;status:'preview'|'pending'|'complete'|'stale';error?:string}
+export interface MigrationReceipt{id:string;complete:boolean;confirmed:number;total:number;pending:number;error?:string}

@@ -58,3 +58,6 @@ test('write permission failure and a rewritten history never become successful p
 test('durable baseline detects rewritten Git history repeatedly after the scan cache is recreated',async()=>{
  const t=await setup();try{const initial=t.server.head;t.server.edit('a.md','baseline');const known=t.server.head;await t.adapter.scan();t.server.rewrite(initial);await rm(join(t.root,'cache/github'),{recursive:true,force:true});const adapter=new GithubAdapter({...t.config,knownHead:async()=>known});expect((await adapter.scan()).historyRewritten).toBe(true);expect((await adapter.scan()).historyRewritten).toBe(true)}finally{await t.close()}
 })
+test('ignored Git blobs are excluded before downloading their private contents',async()=>{
+ const t=await setup();try{t.server.edit('.env','SYNTHETIC_SECRET');t.server.edit('public.txt','public');const privateSha=[...t.server.blobs].find(([,v])=>v.toString()==='SYNTHETIC_SECRET')![0],adapter=new GithubAdapter({...t.config,includePath:path=>path!=='.env'}),scan=await adapter.scan();expect(scan.complete).toBe(true);expect(scan.entries.map(e=>e.path)).toEqual(['public.txt']);expect(t.server.requests.some(r=>r.path.endsWith('/git/blobs/'+privateSha))).toBe(false)}finally{await t.close()}
+})
