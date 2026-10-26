@@ -79,3 +79,5 @@ test('corrupt stored baseline referenced without in-memory bytes blocks preparat
     expect(t.journal.recover()).toHaveLength(0)
   }finally{await t.close()}
 })
+
+test('a failed checkpoint open seals every journal mutation and preserves its original bytes',async()=>{const t=await setup();try{const {writeFile,readFile}=await import('node:fs/promises'),path=join(t.dir,'state/sync',t.i.archiveId,'checkpoint.json'),broken=Buffer.from('{BROKEN_HISTORY');await writeFile(path,broken);const failed=new SyncJournal(t.dir,t.i.archiveId);await expect(failed.open()).rejects.toThrow();await expect(failed.prepare(planSync(t.i))).rejects.toThrow(/历史|checkpoint|CHECKPOINT/);await expect(failed.suspendForRestore()).rejects.toThrow();await expect(failed.initialize({graph:{},localHeads:{},baselines:{}})).rejects.toThrow();expect(await readFile(path)).toEqual(broken)}finally{await t.close()}})

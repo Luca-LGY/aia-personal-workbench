@@ -15,7 +15,7 @@
 - T23 全量门禁：42 unit、100 integration、31 Electron、typecheck/lint/build 全通过；日志 `/tmp/aia-t23-flushed-all.log`（临时日志，长期依据为同版本测试源码与此记录）。
 - T24 缺少产物时 packaged-app 测试先失败；实际 `package:mac` 成功后该测试通过。
 - 保存失败、比较列表、聊天落档边界、搜索筛选与填充视觉专项已加入强制测试；不使用 skip，也不增加旧测试时限。
-- 最终全量门禁：42 unit、100 integration、37 Electron全部通过，typecheck、lint、构建、arm64打包退出0（`/tmp/aia-t24-all.log`）。完整命令 `caffeinate -i ./scripts/npmw run test:all`；仅测试期间避免系统自动休眠。
+- T24首次完整门禁：42 unit、100 integration、37 Electron全部通过，typecheck、lint、构建、arm64打包退出0（`/tmp/aia-t24-all.log`）。完整命令 `caffeinate -i ./scripts/npmw run test:all`；仅测试期间避免系统自动休眠。
 - 视觉对照及所有可检查证据见 visual-review.md、项目根 design-qa.md 和 A01-A24.md。
 
 ## 数据保护与真实验收边界
@@ -27,3 +27,11 @@
 - 未推送代码、未创建云服务器／数据库、未部署网站或手机端。
 
 基线校验：PRD.md SHA-256 `0ebd31987fb5a3ae2c38c7135033875a725c66c5ea74192ed64b78a79f6fcdce`；选图 SHA-256 `ff0d9dabe7543f746ad05c5b77609fbf88190443d087b77eb43ecc585f29d0ad`，均与原始交接一致。应用目录约322MB，dist为忽略的可重建本机产物。
+
+## 独立审查后最终门禁
+
+- 完整命令：`caffeinate -i ./scripts/npmw run test:all`，退出0，日志 `/tmp/aia-final-verified-all.log`。
+- 类型检查、lint、42 unit、104 integration、Mac arm64构建打包、46 Electron全部通过，共192项测试，无skip／重试／放宽旧断言。
+- 最终.app已实际验证SQLite、附件SHA、显式退出重开和加密不可用降级；1万条中文热查询11.7ms，500ms阈值保持。
+- 一次独立全分支审查的5项Important均有RED→GREEN；全套发现的草稿初始化和早关窗时序也修复后复跑全部。详见 final-review.md。
+- 当前代码保留在本地 `codex/personal-workbench`；没有推送、合并、部署或修改真实云档案。真实事项继续待验。

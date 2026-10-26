@@ -1,3 +1,4 @@
+import { openArchiveDocument } from './safe-open'
 import { join } from 'node:path'
 import { ipcMain,BrowserWindow,dialog,shell,app,type IpcMainInvokeEvent } from 'electron'
 import { z } from 'zod'
@@ -65,11 +66,12 @@ export function registerIPC(s:Services,options:{captureReplyDelayMs?:number}={})
  handle('research:saveProject',input=>s.research.saveProject(save.parse(input)))
  handle('research:saveExperiment',input=>s.research.saveExperiment(save.parse(input)))
  handle('attachments:resolve',i=>s.attachments.resolve(hash.parse(i)))
- handle('attachments:open',async i=>{const error=await shell.openPath(await s.attachments.location(hash.parse(i)));if(error)throw Error(error)})
+ handle('attachments:open',async i=>{await openArchiveDocument(await s.attachments.location(hash.parse(i)))})
  handle('learning:listSubjects',()=>s.learning.listSubjects())
  handle('learning:getSubject',i=>s.learning.getSubject(id.parse(i)))
  handle('learning:saveSubject',input=>s.learning.saveSubject(save.parse(input)))
  handle('learning:saveNote',input=>s.learning.saveNote(save.parse(input)))
+ handle('records:deleted',()=>s.repository.deleted())
  handle('records:list',async f=>{const filter=z.object({module:z.enum(MODULES).optional(),kind:z.enum(KINDS).optional(),date:z.iso.date().optional(),role:z.enum(['actual','plan','reference','template','analysis','suggestion']).optional()}).parse(f??{}) as RecordFilter;return s.search.list(filter)})
  handle('records:get',i=>s.search.view(id.parse(i)))
  handle('records:save',input=>s.repository.save(z.object({record:RecordSchema,expectedHash:hash.nullable()}).parse(input)))
@@ -89,7 +91,7 @@ export function registerIPC(s:Services,options:{captureReplyDelayMs?:number}={})
  handle('search:query',q=>s.search.query(SearchQuerySchema.parse(q)))
  handle('search:rebuild',()=>s.search.rebuild())
  handle('sources:resolve',i=>s.search.resolveSource(id.parse(i)))
- handle('sources:open',async i=>{const source=await s.search.resolveSource(id.parse(i));if(!source.exists)throw Error('原档案不存在');const error=await shell.openPath(source.path);if(error)throw Error(error)})
+ handle('sources:open',async i=>{const source=await s.search.resolveSource(id.parse(i));if(!source.exists)throw Error('原档案不存在');await openArchiveDocument(source.path)})
  s.repository.onChange(c=>{for(const w of BrowserWindow.getAllWindows())w.webContents.send('archive:change',c)})
  return{async drain(){accepting=false;await Promise.allSettled([...pending]);await s.repository.transactions.idle()}}
 }

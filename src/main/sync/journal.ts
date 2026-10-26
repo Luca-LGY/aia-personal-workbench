@@ -13,19 +13,20 @@ export interface JournalRun { id: string; plan: StoredPlan; phase: 'prepared' | 
 export interface JournalState { schemaVersion: 1; archiveId: string; revision: number; graph: Record<string, VersionNode>; localHeads: Record<string, string>; baselines: Record<string, EndpointBaseline>; conflicts: Record<string, SyncConflict>; runs: Record<string, JournalRun>; publishSuspendedForRestore: boolean }
 export class SyncJournal {
   private value: JournalState; private tail: Promise<unknown> = Promise.resolve(); private existed = false
-  private integrity=new Map<string,string>()
+  private integrity=new Map<string,string>();private blocked=false
+  private assertWritable(){if(this.blocked)throw Error('同步历史无法读取，CHECKPOINT_BLOCKED；请从完整备份恢复，原文件已保留。')}
   constructor(private root: string, private archiveId: string, private onStage?: (stage: 'objects' | 'prepared' | 'receipt') => void) {
     if (!/^[\w-]+$/.test(archiveId)) throw Error('Invalid archive ID')
     this.value = { schemaVersion: 1, archiveId, revision: 0, graph: {}, localHeads: {}, baselines: {}, conflicts: {}, runs: {}, publishSuspendedForRestore: false }
   }
   private path() { return join(this.root, 'state/sync', this.archiveId, 'checkpoint.json') }
-  async open() { const bytes = await readMaybe(this.path()); if (bytes) { const value = JSON.parse(bytes.toString()) as JournalState; if (value.schemaVersion !== 1 || value.archiveId !== this.archiveId || !value.graph || !value.runs) throw Error('Invalid sync checkpoint'); this.value = value; this.existed = true } }
+  async open() { try{const bytes = await readMaybe(this.path()); if (bytes) { const value = JSON.parse(bytes.toString()) as JournalState; if (value.schemaVersion !== 1 || value.archiveId !== this.archiveId || !value.graph || !value.runs) throw Error('Invalid sync checkpoint'); this.value = value; this.existed = true } }catch(e){this.blocked=true;throw e} }
   getState() { return structuredClone(this.value) }
-  private queue<T>(work: () => Promise<T>) { const next = this.tail.then(work); this.tail = next.catch(() => {}); return next }
-  private async save(next: JournalState) { await atomicWrite(this.path(), JSON.stringify(next)); this.value = next; this.existed = true }
+  private queue<T>(work: () => Promise<T>) { const next = this.tail.then(()=>{this.assertWritable();return work()}); this.tail = next.catch(() => {}); return next }
+  private async save(next: JournalState) { this.assertWritable(); await atomicWrite(this.path(), JSON.stringify(next)); this.value = next; this.existed = true }
   private async update(work: (next: JournalState) => void) { const next = this.getState(); work(next); next.revision++; await this.save(next) }
   initialize(state: Pick<JournalState, 'graph' | 'localHeads' | 'baselines'>) { return this.queue(async () => { if (this.existed) throw Error('Checkpoint already initialized'); await this.save({ ...this.value, ...structuredClone(state) }) }) }
-  async putObject(hash: string, bytes: Uint8Array) { if (!/^[a-f0-9]{64}$/.test(hash) || digest(bytes) !== hash) throw Error('CORRUPT_OBJECT'); const p = join(this.root, 'state/objects', hash), prior = await readMaybe(p); if (prior && digest(prior) !== hash) throw Error('CORRUPT_STORED_OBJECT'); if (!prior) await atomicWrite(p, Buffer.from(bytes)) }
+  async putObject(hash: string, bytes: Uint8Array) { this.assertWritable(); if (!/^[a-f0-9]{64}$/.test(hash) || digest(bytes) !== hash) throw Error('CORRUPT_OBJECT'); const p = join(this.root, 'state/objects', hash), prior = await readMaybe(p); if (prior && digest(prior) !== hash) throw Error('CORRUPT_STORED_OBJECT'); if (!prior) await atomicWrite(p, Buffer.from(bytes)) }
   private async objectLocation(hash:string){if(!/^[a-f0-9]{64}$/.test(hash))throw Error('Invalid object hash');return safePath(this.root,join('state/objects',hash))}
   private async signature(path:string){const s=await stat(path,{bigint:true});if(!s.isFile())throw Error('CORRUPT_OBJECT');return[s.dev,s.ino,s.size,s.mtimeNs,s.ctimeNs].join(':')}
   async verifyObject(hash:string){
@@ -38,7 +39,7 @@ export class SyncJournal {
   }
   async objectPath(hash:string){await this.verifyObject(hash);return this.objectLocation(hash)}
   async hasObject(hash:string){try{return(await stat(await this.objectLocation(hash))).isFile()}catch{return false}}
-  async ingest(source:AsyncIterable<Uint8Array>,expectedHash?:string){const result=await ingestObject(this.root,source,expectedHash);this.integrity.delete(result.hash);return result}
+  async ingest(source:AsyncIterable<Uint8Array>,expectedHash?:string){this.assertWritable();const result=await ingestObject(this.root,source,expectedHash);this.integrity.delete(result.hash);return result}
   async object(hash: string) { await this.verifyObject(hash);const bytes = await readMaybe(await this.objectLocation(hash)); if (!bytes || digest(bytes) !== hash){this.integrity.delete(hash);throw Error('MISSING_OR_CORRUPT_OBJECT: ' + hash)}return bytes }
   prepare(plan: SyncPlan) { return this.queue(async () => {
     if (plan.archiveId !== this.archiveId) throw Error('Wrong archive')

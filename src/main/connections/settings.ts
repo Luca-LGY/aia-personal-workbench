@@ -12,16 +12,16 @@ const blank = (id: EndpointId): InternalEndpoint => ({ id, enabled: false, confi
 export class ConnectionService {
   private value: StoredSettings = { schemaVersion: 1, endpoints: { webdav: blank('webdav'), github: blank('github') } }
   private tail: Promise<unknown> = Promise.resolve()
-  private listeners = new Set<() => void>()
+  private listeners = new Set<() => void>();private unreadSettings:Buffer|null=null;private warning:string|undefined
   constructor(private root: string, private vault: CredentialVault, private allowTestHTTP = false) {}
   private path() { return join(this.root, 'settings/connections.json') }
-  async open() { const bytes = await readMaybe(this.path()); if (bytes) { const value = JSON.parse(bytes.toString()) as StoredSettings; if (value.schemaVersion !== 1 || !value.endpoints?.webdav || !value.endpoints?.github) throw Error('连接设置格式无法读取'); this.value = value } }
+  async open() { const bytes=await readMaybe(this.path());if(!bytes)return;try{const value=JSON.parse(bytes.toString()) as StoredSettings;if(value.schemaVersion!==1||!value.endpoints?.webdav||!value.endpoints?.github)throw Error('Invalid settings');for(const id of ['webdav','github']as const){const e=value.endpoints[id];if(e.id!==id||typeof e.enabled!=='boolean'||!Number.isSafeInteger(e.revision)||e.revision<0||!['not_configured','configured','verified','error','disabled'].includes(e.status))throw Error('Invalid endpoint');if(e.config){const c=ConnectionInputSchema.parse(e.config);if(c.id!==id)throw Error('Invalid identity');e.config=c.id==='webdav'?{id:c.id,url:c.url,username:c.username}:{id:c.id,owner:c.owner,repo:c.repo,branch:c.branch}}}this.value=value}catch{this.unreadSettings=bytes;this.warning='连接设置无法读取，云端已停用；原文件已保留，本机档案仍可使用。请重新配置连接。'}}
   private queue<T>(work: () => Promise<T>): Promise<T> { const next = this.tail.then(work); this.tail = next.catch(() => {}); return next }
-  private async publish(id: EndpointId, endpoint: InternalEndpoint) { const next = { ...this.value, endpoints: { ...this.value.endpoints, [id]: endpoint } }; await atomicWrite(this.path(), JSON.stringify(next)); this.value = next; for(const listener of this.listeners)listener() }
+  private async publish(id: EndpointId, endpoint: InternalEndpoint) { if(this.unreadSettings){await atomicWrite(join(this.root,'settings','connections.unreadable-'+randomUUID()+'.json'),this.unreadSettings);this.unreadSettings=null}const next = { ...this.value, endpoints: { ...this.value.endpoints, [id]: endpoint } }; await atomicWrite(this.path(), JSON.stringify(next)); this.value = next; for(const listener of this.listeners)listener() }
   onChange(listener:()=>void){this.listeners.add(listener);return()=>this.listeners.delete(listener)}
   async getState(): Promise<ConnectionState> {
     const publicEndpoint = async (id: EndpointId): Promise<EndpointState> => { const { credentialKey, ...e } = this.value.endpoints[id]; return { ...e, status: e.enabled ? e.status : e.config ? 'disabled' : 'not_configured', credentialStored: !!credentialKey && await this.vault.has(credentialKey) } }
-    return { schemaVersion: 1, endpoints: { webdav: await publicEndpoint('webdav'), github: await publicEndpoint('github') } }
+    return { schemaVersion: 1, ...(this.warning?{warning:this.warning}:{}),endpoints: { webdav: await publicEndpoint('webdav'), github: await publicEndpoint('github') } }
   }
   async export() { return this.getState() }
   configure(input: ConfigureConnection) { return this.queue(async () => {

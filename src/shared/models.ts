@@ -13,3 +13,5 @@ export interface DeletionReceipt {id:string;transactionId:string;priorHash:strin
 export interface RecoveryReport {recovered:string[];conflicts:string[]}
 export interface AttachmentRef {id:string;path:string;hash:string;name:string;size:number}
 export type Unsubscribe=()=>void
+
+export interface DeletedRecord{id:string;title:string;path:string;deletedAt:string;available:boolean}

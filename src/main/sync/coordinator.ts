@@ -12,7 +12,7 @@ import { parseDocument,serializeRecord } from '../archive/codec'
 import { SyncError } from './errors'
 import type { EndpointAdapter,EndpointReceipt,ScanResult,SyncState,SyncReason,SyncEndpointState,ResolveConflictInput,SyncPlan } from '../../shared/sync'
 export interface EndpointBinding{adapter:EndpointAdapter;configRevision:number;initializeEmpty?:boolean}
-interface Options{now?:()=>number;random?:()=>number;ready?:boolean;settleLocal?:()=>Promise<unknown>}
+interface Options{initializationError?:string;now?:()=>number;random?:()=>number;ready?:boolean;settleLocal?:()=>Promise<unknown>}
 export class SyncCoordinator{
  private generation=0;private runGeneration=0
  private publicationGuard:(()=>Promise<string|null>)|undefined
@@ -22,7 +22,7 @@ export class SyncCoordinator{
  constructor(readonly repo:ArchiveRepository,readonly journal:SyncJournal,private bindings:()=>Promise<EndpointBinding[]>,private options:Options={}){this.now=options.now??Date.now;this.random=options.random??Math.random;this.ready=options.ready??false;repo.onChange(c=>{if(c.origin!=='sync')this.markDirty();if(c.origin==='app'||c.origin==='restore'){this.value.localSavedAt=this.time();void this.persist()}})}
  private time(){return new Date(this.now()).toISOString()}
  private path(){return join(this.repo.stateRoot,'state/sync/status.json')}
- async open(){const bytes=await readMaybe(this.path());if(bytes)try{const v=JSON.parse(bytes.toString())as SyncState;if(v.schemaVersion===1)this.value=v}catch{this.value.warnings.push('同步状态缓存无法读取，将重新比较')};const ready=await readMaybe(join(this.repo.stateRoot,'settings/archive-ready.json'));if(ready)this.ready=JSON.parse(ready.toString()).ready===true;this.value.setupRequired=!this.ready;this.value.conflicts=Object.values(this.journal.getState().conflicts)}
+ async open(){const bytes=await readMaybe(this.path());if(bytes)try{const v=JSON.parse(bytes.toString())as SyncState;if(v.schemaVersion===1)this.value=v}catch{this.value.warnings.push('同步状态缓存无法读取，将重新比较')};const ready=await readMaybe(join(this.repo.stateRoot,'settings/archive-ready.json'));if(ready)try{const value=JSON.parse(ready.toString());if(typeof value.ready!=='boolean')throw Error('Invalid readiness');this.ready=value.ready}catch{this.ready=false;this.value.warnings.push('档案接入设置无法读取，发布已暂停，请重新核对连接和档案差异。')};this.value.setupRequired=!this.ready;this.value.conflicts=Object.values(this.journal.getState().conflicts)}
  markDirty(){this.generation++}
  getState(){return structuredClone(this.value)}
  onChange(listener:()=>void){this.listeners.add(listener);return()=>this.listeners.delete(listener)}
@@ -30,7 +30,7 @@ export class SyncCoordinator{
  private async phase(phase:SyncState['phase']){this.value.phase=phase;await this.persist()}
  async setReady(ready:boolean){await atomicWrite(join(this.repo.stateRoot,'settings/archive-ready.json'),JSON.stringify({ready}));this.ready=ready;this.value.setupRequired=!ready;await this.persist()}
  setPublicationGuard(guard:()=>Promise<string|null>){this.publicationGuard=guard}
- async authorizePublication(){const reason=await this.publicationGuard?.();if(reason)throw Error(reason)}
+ async authorizePublication(){if(this.options.initializationError)throw Error(this.options.initializationError);const reason=await this.publicationGuard?.();if(reason)throw Error(reason)}
  async verifyArchiveIdentity(scan:ScanResult){const catalog=scan.entries.find(e=>e.path==='.aia/catalog.json');if(!catalog)return;try{const value=JSON.parse((await this.journal.object(catalog.hash)).toString());if(value.schemaVersion!==1||value.archiveId!==this.repo.info.archiveId)throw Error('identity')}catch{throw new SyncError('unsupported','目标属于另一份APP档案或档案身份无法核对，请重新选择专用目录或原档案')}}
  run(reason:SyncReason):Promise<SyncState>{const held=this.maintenance??this.transition??this.resolution;if(held)return held.then(()=>this.runInternal(reason),()=>this.runInternal(reason));return this.runInternal(reason)}
  withMaintenance<T>(work:()=>Promise<T>):Promise<T>{if(this.maintenance||this.stopped)return Promise.reject(Error('正在进行档案维护或退出'));const pending=[this.active,this.resolution,this.transition,this.saving];const next=(async()=>{await Promise.allSettled(pending);return work()})().finally(()=>{this.maintenance=null});this.maintenance=next;return next}
@@ -57,7 +57,7 @@ export class SyncCoordinator{
   if(changes.length)await this.repo.writeFiles(changes,'sync');await this.journal.recordLocalApplied(plan.id)
  }
  private async execute(reason:SyncReason){
-  this.value.lastRunAt=this.time();this.value.warnings=[];await this.phase('scanning')
+  this.value.lastRunAt=this.time();this.value.warnings=[];if(this.options.initializationError){this.value.warnings.push(this.options.initializationError+'；云端同步已停止，请从完整备份恢复历史。本机记录仍可使用。');this.value.setupRequired=true;await this.phase('pending');return this.getState()}await this.phase('scanning')
   try{
    const bindings=(await this.bindings()).map(b=>({...b}));if(!bindings.length){this.value.publishSuspended=this.journal.getState().publishSuspendedForRestore;await this.phase(this.value.publishSuspended?'suspended':'idle');return this.getState()}await this.options.settleLocal?.();const local=await localSnapshot(this.repo,this.journal),snapshots=await this.scans(bindings,reason),all=[local,...[...snapshots.values()].filter((s):s is ScanResult=>!!s)],deletedRecordIds=await this.restoreIntents(all);await this.scope(all)
    this.value.publishSuspended=this.journal.getState().publishSuspendedForRestore;this.value.setupRequired=!this.ready

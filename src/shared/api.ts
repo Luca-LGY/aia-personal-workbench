@@ -19,7 +19,7 @@ export interface AiaAPI {
  migration:{preview(target:EndpointId):Promise<MigrationManifest>;run(id:string):Promise<MigrationReceipt>;list():Promise<MigrationManifest[]>}
  backup:{export():Promise<BackupReceipt|null>;inspect():Promise<(BackupPreview&{token:string})|null>;restore(token:string):Promise<(RestoreReceipt&{token:string})|null>;activate(token:string):Promise<{restarting:boolean}>}
  sync:{getState():Promise<SyncState>;run():Promise<SyncState>;resumeRestored(comparisonId:string):Promise<SyncState>;candidate(conflictId:string,nodeId:string):Promise<{text:string|null;binary:boolean;size:number}>;resolve(input:ResolveConflictInput):Promise<{nodeId:string}>;onChange(listener:()=>void):()=>void}
- records:{list(filter?:RecordFilter):Promise<RecordView[]>;get(id:string):Promise<RecordView|null>;save(input:SaveRecord):Promise<RecordEnvelope>;remove(id:string,hash:string):Promise<DeletionReceipt>;restore(id:string):Promise<RecordEnvelope|null>}
+ records:{deleted():Promise<import('./models').DeletedRecord[]>;list(filter?:RecordFilter):Promise<RecordView[]>;get(id:string):Promise<RecordView|null>;save(input:SaveRecord):Promise<RecordEnvelope>;remove(id:string,hash:string):Promise<DeletionReceipt>;restore(id:string):Promise<RecordEnvelope|null>}
  drafts:{get(key:string):Promise<string>;save(key:string,text:string):Promise<void>}
  attachments:{choose():Promise<AttachmentRef[]>;resolve(id:string):Promise<AttachmentRef|null>;open(id:string):Promise<void>}
  capture:{preview(text:string,attachmentIds:string[]):Promise<CapturePreview>;commit(preview:CapturePreview):Promise<CaptureReceipt>;undo(sourceId:string):Promise<void>}

@@ -1,8 +1,8 @@
-import { mkdir,readFile } from 'node:fs/promises'
+import { mkdir,readFile,readdir } from 'node:fs/promises'
 import { join,relative,resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { parseDocument,serializeRecord,hashBytes } from './codec'
-import { ensureRoot,walkFiles } from './paths'
+import { ensureRoot,walkFiles,safePath } from './paths'
 import { TransactionStore,atomicWrite,readMaybe,type FileChange,type Stage } from './transactions'
 import { RecordSchema,type RecordEnvelope } from '../../shared/schemas'
 import type { ArchiveInfo,SaveRecord,RecordFilter,ArchiveChange,DeletionReceipt } from '../../shared/models'
@@ -25,6 +25,7 @@ export class ArchiveRepository{
   for(const item of versions){const v=this.versions.get(item.id);if(!v||v.hash!==item.hash)throw Error('CONFLICT: capture record changed');const tombstone={id:item.id,path:v.path,priorHash:v.hash,deletedAt:new Date().toISOString()};changes.push({path:v.path,bytes:null,expectedHash:item.hash},{path:join('.aia','tombstones',item.id+'.json'),bytes:Buffer.from(JSON.stringify(tombstone)),expectedHash:null})}
   await this.writeFiles([...changes,...extra],'app')
  }
+ async deleted(){const path=join(this.root,'.aia/tombstones');let names:string[];try{names=await readdir(path)}catch(e){if((e as NodeJS.ErrnoException).code==='ENOENT')return[];throw e}const rows:import('../../shared/models').DeletedRecord[]=[];for(const name of names){if(!/^[a-f0-9-]{36}\.json$/.test(name))continue;const id=name.slice(0,-5);try{const t=JSON.parse(await readFile(await safePath(this.root,join('.aia/tombstones',name)),'utf8'));if(t.id!==id||typeof t.path!=='string'||typeof t.deletedAt!=='string'||typeof t.priorHash!=='string')throw Error();await safePath(this.root,t.path);let title='原记录暂不可读取',available=false;try{const parsed=parseDocument(await this.transactions.object(t.priorHash),t.path);if(parsed.status==='record'&&parsed.record.id===id){title=parsed.record.title;available=true}}catch{/* retain missing or corrupt deleted objects for explicit repair */}rows.push({id,title,path:t.path,deletedAt:t.deletedAt,available})}catch{rows.push({id,title:'删除标记需要核对',path:'.aia/tombstones/'+name,deletedAt:'未知',available:false})}}return rows.sort((a,b)=>b.deletedAt.localeCompare(a.deletedAt))}
  async restoreDeleted(id:string){if(!/^[a-f0-9-]{36}$/.test(id))throw Error('Invalid ID');const p=join('.aia','tombstones',id+'.json'),raw=await readFile(join(this.root,p)),t=JSON.parse(raw.toString()) as {path:string;priorHash:string};const marker=join('.aia','restores',id+'.json'),prior=await readMaybe(join(this.root,marker));await this.writeFiles([{path:t.path,bytes:await this.transactions.object(t.priorHash),expectedHash:null},{path:p,bytes:null,expectedHash:hashBytes(raw)},{path:marker,bytes:Buffer.from(JSON.stringify({id,path:t.path,hash:t.priorHash,restoredAt:new Date().toISOString()})),expectedHash:prior?hashBytes(prior):null}],'restore');return this.get(id)}
  async recover(){const report=await this.transactions.recover();await this.refresh();return report}
  onChange(listener:(c:ArchiveChange)=>void){this.listeners.add(listener);return()=>this.listeners.delete(listener)}

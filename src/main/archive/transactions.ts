@@ -17,8 +17,8 @@ export class TransactionStore{
  private tail:Promise<unknown>=Promise.resolve()
  constructor(readonly root:string,readonly state:string,readonly onStage?:(s:Stage)=>void){}
  private dir(){return join(this.state,'state','transactions')}
- async storeObject(bytes:Buffer){const hash=hashBytes(bytes),p=join(this.state,'state','objects',hash);if(!await readMaybe(p))await atomicWrite(p,bytes);return hash}
- async object(hash:string){if(!/^[a-f0-9]{64}$/.test(hash))throw Error('Invalid object hash');return readFile(join(this.state,'state','objects',hash))}
+ async storeObject(bytes:Buffer){const hash=hashBytes(bytes),p=join(this.state,'state','objects',hash);const prior=await readMaybe(p);if(prior&&hashBytes(prior)!==hash)throw Error('CORRUPT_STORED_OBJECT');if(!prior)await atomicWrite(p,bytes);return hash}
+ async object(hash:string){if(!/^[a-f0-9]{64}$/.test(hash))throw Error('Invalid object hash');const bytes=await readFile(await safePath(this.state,join('state','objects',hash)));if(hashBytes(bytes)!==hash)throw Error('CORRUPT_STORED_OBJECT');return bytes}
  async commit(changes:FileChange[]):Promise<string>{
   const work=this.tail.then(async()=>{
    const entries:TxEntry[]=[]
@@ -31,7 +31,7 @@ export class TransactionStore{
  }
  private async saveTx(tx:Tx){await atomicWrite(join(this.dir(),tx.id+'.json'),JSON.stringify(tx))}
  private async apply(e:TxEntry){const p=await safePath(this.root,e.path),prior=await readMaybe(p),current=prior?hashBytes(prior):null;if(current===e.after)return;if(current!==e.before)throw Error('CONFLICT during recovery: '+e.path);if(e.after===null)await unlink(p);else await atomicWrite(p,await this.object(e.after))}
- async recover(){await mkdir(this.dir(),{recursive:true});const recovered:string[]=[],conflicts:string[]=[];for(const name of (await readdir(this.dir())).sort()){if(!name.endsWith('.json'))continue;const tx=JSON.parse(await readFile(join(this.dir(),name),'utf8')) as Tx;if(tx.status!=='prepared')continue;try{for(const e of tx.entries)await this.apply(e);tx.status='committed';recovered.push(tx.id)}catch(e){if(!(e instanceof Error)||!e.message.startsWith('CONFLICT'))throw e;tx.status='conflict';conflicts.push(tx.id)}await this.saveTx(tx)}return{recovered,conflicts}}
+ async recover(){await mkdir(this.dir(),{recursive:true});const recovered:string[]=[],conflicts:string[]=[];for(const name of (await readdir(this.dir())).sort()){if(!name.endsWith('.json'))continue;const tx=JSON.parse(await readFile(join(this.dir(),name),'utf8')) as Tx;if(tx.status!=='prepared')continue;try{for(const e of tx.entries)if(e.after)await this.object(e.after);for(const e of tx.entries)await this.apply(e);tx.status='committed';recovered.push(tx.id)}catch(e){if(!(e instanceof Error)||!e.message.startsWith('CONFLICT'))throw e;tx.status='conflict';conflicts.push(tx.id)}await this.saveTx(tx)}return{recovered,conflicts}}
  async idle(){await this.tail}
  exclusive<T>(read:()=>Promise<T>){const work=this.tail.then(read);this.tail=work.catch(()=>{});return work}
 }

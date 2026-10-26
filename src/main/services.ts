@@ -33,6 +33,7 @@ export async function createServices(archiveRoot:string,stateRoot:string,db:Data
  const repository=new ArchiveRepository(archiveRoot,stateRoot);await repository.open()
  const pendingPaths=new Set<string>();let indexingReady=false
  const stopWatcher=await watchArchive(archiveRoot,paths=>{if(!indexingReady){for(const path of paths)pendingPaths.add(path);return}gate.run(()=>repository.notifyExternal(paths)).catch(e=>console.error('Archive change could not be indexed:',e instanceof Error?e.message:String(e)))})
+ try{
  const importer=new LegacyImporter(archiveRoot,stateRoot),initial=await importer.scan()
  const search=new SearchService(db,importer,initial);repository.onChange(()=>search.invalidate());indexingReady=true
  if(pendingPaths.size)await repository.notifyExternal([...pendingPaths])
@@ -42,11 +43,12 @@ export async function createServices(archiveRoot:string,stateRoot:string,db:Data
  try{await syncJournal.open()}catch{syncInitializationError='同步历史无法安全读取'}
  const cloud=new CloudService(connections,syncJournal,stateRoot,syncInitializationError,async namespace=>{const state=syncJournal.getState();return Object.entries(state.baselines[namespace]?.entries??{}).filter(([,v])=>state.graph[v.nodeId]?.state.kind==='present').map(([path])=>path)},async namespace=>syncJournal.getState().baselines[namespace]?.remoteRevision,archiveRoot)
  const bindings=()=>loadEndpointBindings(connections,cloud)
- const coordinator=new SyncCoordinator(repository,syncJournal,bindings,{ready:allowTestHTTP&&process.env.AIA_TEST_SYNC_READY==='1',settleLocal:()=>search.list()});await coordinator.open()
+ const coordinator=new SyncCoordinator(repository,syncJournal,bindings,{initializationError:syncInitializationError,ready:allowTestHTTP&&process.env.AIA_TEST_SYNC_READY==='1',settleLocal:()=>search.list()});await coordinator.open()
  const scheduler=new SyncScheduler(reason=>gate.run(()=>coordinator.run(reason)));repository.onChange(()=>scheduler.localChange());connections.onChange(()=>{coordinator.markDirty();scheduler.localChange()})
 
  const backup=new BackupService(repository,coordinator,gate,{publicSettings:()=>connections.export()}),workspace=new WorkspaceService(workspaceRoot)
  const migration=new MigrationService(repository,coordinator,bindings),setup=new ArchiveSetupService(repository,coordinator,migration,workspace,{baseRoot:workspaceRoot})
  return {gate,backup,workspace,migration,setup,repository,importer,search,stopWatcher,connections,cloud,syncJournal,coordinator,scheduler,syncInitializationError,garmin,weekly,training,overview,development:new DevelopmentService(repository),games:new GamesService(repository),diet:new DietService(repository),research:new ResearchService(repository),learning:new LearningService(repository),plans:new PlanService(repository,async id=>(await search.view(id))?.record??null),capture:new CaptureService(repository,now),attachments:new AttachmentStore(archiveRoot,stateRoot),drafts:new DraftStore(stateRoot)}
+ }catch(e){await stopWatcher();throw e}
 }
 export type Services=Awaited<ReturnType<typeof createServices>>
