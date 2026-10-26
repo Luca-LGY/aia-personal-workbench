@@ -15,7 +15,7 @@ test('connections encrypt real stored credentials, return only public state and 
     await expect(t.page.getByRole('status',{name:'操作提示'})).toContainText('坚果云连接已配置')
     await expect(t.page.getByLabel('坚果云应用密码')).toHaveValue('')
     await t.page.getByRole('button', { name: '测试坚果云连接', exact: true }).click()
-    await expect(t.page.getByRole('region', { name: '坚果云连接' })).toContainText('验证成功，尚未同步')
+    await expect(t.page.getByRole('region', { name: '坚果云连接' })).toContainText('连接验证成功')
     const visible = await t.page.evaluate(async () => ({ state: await window.aia.connections.getState(), exported: await window.aia.connections.export(), apiKeys: Object.keys(window.aia.connections) }))
     expect(JSON.stringify(visible)).not.toContain('TEST_ONLY_DAV_SECRET_63')
     expect(visible.apiKeys).not.toContain('getSecret')

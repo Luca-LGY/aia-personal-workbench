@@ -31,6 +31,7 @@ export class ConnectionService {
     let credentialKey = prior.credentialKey
     if (p.secret !== undefined) { credentialKey = prior.credentialKey ? p.id + '-' + randomUUID() : p.id; await this.vault.set(credentialKey, p.secret) }
     if (!credentialKey || !await this.vault.has(credentialKey)) throw Error('请填写连接凭据')
+    if (prior.enabled && p.secret === undefined && JSON.stringify(prior.config) === JSON.stringify(config)) return this.getState()
     await this.publish(p.id, { id: p.id, enabled: true, config, credentialKey, status: 'configured', verifiedAt: null, revision: prior.revision + 1 })
     return this.getState()
   }) }
