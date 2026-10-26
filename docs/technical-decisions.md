@@ -19,3 +19,5 @@ APP使用独立的 `AIA-Workbench` 用户数据目录，测试使用临时独立
 坚果云协议核对参考[官方授权与限制](https://help.jianguoyun.com/?p=2064)、[WebDAV RFC4918](https://www.rfc-editor.org/rfc/rfc4918.html)及[坚果云官方Obsidian插件分页实现](https://github.com/nutstore/obsidian-nutstore-sync/blob/main/src/api/webdav.ts)。分页使用响应Link的next关系；是否可安全写入仍以真实账号能力探针为准。本APP预算300次/30分钟，不把客户端预算说成服务商配额。
 
 GitHub适配器按不可变commit读取真实tree SHA，发布仅force:false快进；提交存在与当前分支内容一致分别回执。上传blob按流式base64与Git blob SHA核对，未变更不创建提交。参考：https://docs.github.com/en/rest/git/refs#update-a-reference 、https://docs.github.com/en/rest/git/trees#get-a-tree 。真实账号验收待配置，不以合成HTTP服务替代。
+
+同步恢复先读回各端与本机、补确认已达目标的旧操作，其他旧批次被替代后统一重算，不直接重放旧发布。冲突候选身份取单文件版本，避免无关文件改变使选择失效；选择与手动同步串行。已知冲突在参与方未知时继续冻结该路径。关窗隐藏到菜单栏；退出停止调度，排空已提交IPC、本机事务、同步检查点，释放真实路径锁。尚未档案接入时只比较不发布；恢复冻结同样不能被手动按钮绕过。

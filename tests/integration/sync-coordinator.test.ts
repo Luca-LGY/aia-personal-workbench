@@ -1,0 +1,72 @@
+import { test,expect } from 'vitest'
+import { mkdtemp,rm,readFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { ArchiveRepository } from '../../src/main/archive/repository'
+import { SyncJournal } from '../../src/main/sync/journal'
+import { SyncCoordinator,type EndpointBinding } from '../../src/main/sync/coordinator'
+import { ArchiveLease } from '../../src/main/sync/archive-lease'
+import { MemoryEndpoint } from '../helpers/memory-endpoint'
+import { digest } from '../../src/main/sync/graph'
+import { makeRecord } from '../../src/shared/schemas'
+async function setup(count=2){
+ const root=await mkdtemp(join(tmpdir(),'aia-coordinator-')),repo=new ArchiveRepository(join(root,'archive'),join(root,'state'));await repo.open();const journal=new SyncJournal(repo.stateRoot,repo.info.archiveId);await journal.open()
+ const dav=new MemoryEndpoint('webdav',undefined,journal),git=new MemoryEndpoint('github',undefined,journal),bindings:EndpointBinding[]=[{adapter:dav,configRevision:1,initializeEmpty:true},...(count===2?[{adapter:git,configRevision:1,initializeEmpty:true}]:[])]
+ let now=Date.parse('2026-10-26T00:00:00Z');const options={now:()=>now,random:()=>0.5,ready:true},coordinator=new SyncCoordinator(repo,journal,async()=>bindings.map(b=>({...b})),options);await coordinator.open();await coordinator.run('manual')
+ return{root,repo,journal,dav,git,bindings,coordinator,options,advance:(ms:number)=>{now+=ms},restart:async()=>{const j=new SyncJournal(repo.stateRoot,repo.info.archiveId);await j.open();const c=new SyncCoordinator(repo,j,async()=>bindings.map(b=>({...b})),options);await c.open();return c},close:()=>rm(root,{recursive:true,force:true})}
+}
+async function write(t:Awaited<ReturnType<typeof setup>>,path:string,value:string){let old:Buffer|null=null;try{old=await readFile(join(t.repo.root,path))}catch{/* new */}await t.repo.writeFiles([{path,bytes:Buffer.from(value),expectedHash:old?digest(old):null}],'app')}
+test('both endpoints are scanned before publishing, all independent edits converge, ten unchanged rounds write nothing',async()=>{
+ const t=await setup();try{await write(t,'a.md','a0');await write(t,'b.md','b0');await write(t,'c.md','c0');await t.coordinator.run('manual');await write(t,'a.md','a1');t.dav.set('b.md','b1');t.git.set('c.md','c1');const oldDav=t.dav.scans,oldGit=t.git.scans,apply=t.dav.apply.bind(t.dav);t.dav.apply=async b=>{expect(t.dav.scans).toBeGreaterThan(oldDav);expect(t.git.scans).toBeGreaterThan(oldGit);return apply(b)}
+  const report=await t.coordinator.run('manual');expect(report.phase).toBe('synced');for(const[path,value]of Object.entries({'a.md':'a1','b.md':'b1','c.md':'c1'})){expect(await readFile(join(t.repo.root,path),'utf8')).toBe(value);expect(t.dav.files.get(path)?.bytes.toString()).toBe(value);expect(t.git.files.get(path)?.bytes.toString()).toBe(value)}
+  const writes=t.dav.writes+t.git.writes,commits=t.git.commits,success=report.endpoints.github!.lastSuccessAt;for(let i=0;i<10;i++){t.advance(1000);expect((await t.coordinator.run('timer')).phase).toBe('synced')}expect(t.dav.writes+t.git.writes).toBe(writes);expect(t.git.commits).toBe(commits);expect(t.coordinator.getState().endpoints.github!.lastSuccessAt).toBe(success)
+ }finally{await t.close()}
+})
+test('single endpoint operates independently and offline endpoint resumes after restart without repeating confirmed writes',async()=>{
+ const one=await setup(1);try{await write(one,'single.md','one');expect((await one.coordinator.run('manual')).phase).toBe('synced');expect(one.git.scans).toBe(0)}finally{await one.close()}
+ const t=await setup();try{await write(t,'offline.md','durable');const previous=t.coordinator.getState().endpoints.github!.lastSuccessAt;t.git.offline=true;t.advance(1000);const r=await t.coordinator.run('manual');expect(r.endpoints.github!.lastSuccessAt).toBe(previous);expect(r.endpoints.github!.pending).toBeGreaterThan(0);expect(t.dav.files.get('offline.md')?.bytes.toString()).toBe('durable');const writes=t.dav.writes;t.git.offline=false;t.advance(60000);const c=await t.restart();expect((await c.run('startup')).phase).toBe('synced');expect(t.dav.writes).toBe(writes);expect(t.git.files.get('offline.md')?.bytes.toString()).toBe('durable')}finally{await t.close()}
+})
+test('accepted writes with lost response are read back before restart retry and never overwrite newer local edits',async()=>{
+ const t=await setup();try{await write(t,'a.md','first');t.dav.loseReplyOnce=true;await t.coordinator.run('manual');expect(t.journal.recover()).toHaveLength(0);const writes=t.dav.writes;await write(t,'a.md','second');const c=await t.restart();t.advance(60000);await c.run('startup');expect(t.dav.files.get('a.md')?.bytes.toString()).toBe('second');expect(t.git.files.get('a.md')?.bytes.toString()).toBe('second');expect(t.dav.writes).toBe(writes+1);expect(await readFile(join(t.repo.root,'a.md'),'utf8')).toBe('second')}finally{await t.close()}
+})
+test('authentication failures stop all retries until configuration changes, manual cannot bypass Retry-After',async()=>{
+ const t=await setup();try{let calls=0;const scan=t.dav.scan.bind(t.dav);t.dav.scan=async()=>{calls++;return scan()};t.dav.unauthorized=true;await t.coordinator.run('manual');await t.coordinator.run('timer');await t.coordinator.run('manual');expect(calls).toBe(1);t.bindings[0].configRevision++;t.dav.unauthorized=false;await t.coordinator.run('manual');expect(calls).toBeGreaterThan(1);t.dav.retryAfterMs=10000;await t.coordinator.run('manual');const count=calls;t.dav.retryAfterMs=0;await t.coordinator.run('manual');expect(calls).toBe(count);t.advance(11000);await t.coordinator.run('timer');expect(calls).toBeGreaterThan(count)}finally{await t.close()}
+})
+test('overlapping conflict preserves all candidates, refuses stale choice and resolves with all candidate parents',async()=>{
+ const t=await setup();try{await write(t,'a.md','base');await t.coordinator.run('manual');await write(t,'a.md','local');t.dav.set('a.md','cloud');await t.coordinator.run('manual');const conflict=t.coordinator.getState().conflicts.find(c=>c.path==='a.md')!;expect(conflict.candidates.length).toBeGreaterThanOrEqual(2);await write(t,'a.md','local newer');await expect(t.coordinator.resolveConflict({path:conflict.path,conflictId:conflict.id,nodeId:conflict.candidates[0].nodeId})).rejects.toThrow(/变化|过期/)
+  const current=t.coordinator.getState().conflicts.find(c=>c.path==='a.md')!,chosen=current.candidates.find(c=>c.source==='webdav')!;await t.coordinator.resolveConflict({path:current.path,conflictId:current.id,nodeId:chosen.nodeId});await t.coordinator.run('manual');expect(await readFile(join(t.repo.root,'a.md'),'utf8')).toBe('cloud');expect(t.git.files.get('a.md')?.bytes.toString()).toBe('cloud');expect(t.coordinator.getState().conflicts).toHaveLength(0);const state=t.journal.getState(),head=state.graph[state.localHeads['a.md']];expect(head.parents.sort()).toEqual([...new Set(current.candidates.map(c=>c.nodeId))].sort())
+ }finally{await t.close()}
+})
+test('restore freeze blocks every publication entry and concurrent requests join one run',async()=>{
+ const t=await setup();try{await write(t,'a.md','pending');await t.journal.suspendForRestore();const writes=t.dav.writes+t.git.writes;for(const reason of ['startup','manual','timer','local-change']as const){expect((await t.coordinator.run(reason)).phase).toBe('suspended')}expect(t.dav.writes+t.git.writes).toBe(writes);await t.journal.suspendForRestore(false);const old=t.dav.scans;await Promise.all([t.coordinator.run('manual'),t.coordinator.run('timer'),t.coordinator.run('local-change')]);expect(t.dav.scans-old).toBe(2)
+ }finally{await t.close()}
+})
+test('deletion carries shared tombstone and explicit restoration propagates without old-copy resurrection',async()=>{
+ const t=await setup();try{const r=makeRecord('note',{title:'删除恢复',module:'learning'});await t.repo.save({record:r,expectedHash:null});await t.coordinator.run('manual');const v=(await t.repo.version(r.id))!;await t.repo.remove(r.id,v.hash);await t.coordinator.run('manual');expect(t.dav.files.has(v.path)).toBe(false);expect(t.dav.files.has('.aia/tombstones/'+r.id+'.json')).toBe(true);await t.repo.restoreDeleted(r.id);await t.coordinator.run('manual');expect(t.coordinator.getState().conflicts).toHaveLength(0);expect(t.dav.files.get(v.path)?.bytes).toEqual(await readFile(join(t.repo.root,v.path)));expect(t.git.files.has('.aia/restores/'+r.id+'.json')).toBe(true)}finally{await t.close()}
+})
+test('snapshot waits behind a whole multi-file transaction and a second real-path lease is refused',async()=>{
+ const t=await setup();try{let release!:()=>void;const gate=new Promise<void>(r=>release=r),hold=t.repo.transactions.exclusive(()=>gate),saving=t.repo.writeFiles([{path:'a.md',bytes:Buffer.from('a'),expectedHash:null},{path:'b.md',bytes:Buffer.from('b'),expectedHash:null}],'app'),run=t.coordinator.run('manual');release();await hold;await saving;await run;expect(t.dav.files.get('a.md')?.bytes.toString()).toBe('a');expect(t.dav.files.get('b.md')?.bytes.toString()).toBe('b')
+  const a=await ArchiveLease.acquire(t.repo.root);await expect(ArchiveLease.acquire(t.repo.root)).rejects.toThrow(/占用|锁/);await a.release();const b=await ArchiveLease.acquire(t.repo.root);await b.release()
+ }finally{await t.close()}
+})
+test('an unresolved path stays blocked while one conflict participant is offline, unrelated records still upload',async()=>{
+ const t=await setup();try{await write(t,'a.md','base');await t.coordinator.run('manual');await write(t,'a.md','local');t.dav.set('a.md','cloud');await t.coordinator.run('manual');expect(t.coordinator.getState().conflicts).toHaveLength(1);t.dav.offline=true;await write(t,'independent.md','safe');await t.coordinator.run('manual');expect(t.git.files.get('a.md')?.bytes.toString()).toBe('base');expect(t.git.files.get('independent.md')?.bytes.toString()).toBe('safe');expect(t.coordinator.getState().conflicts).toHaveLength(1)}finally{await t.close()}
+})
+test('a prepared old plan is superseded after newer edits and cannot publish old content on restart',async()=>{
+ const t=await setup();try{await write(t,'a.md','old pending');const prepare=t.journal.prepare.bind(t.journal);let crashed=false;t.journal.prepare=async p=>{const r=await prepare(p);if(!crashed){crashed=true;throw Error('synthetic stop after prepared')}return r};await t.coordinator.run('manual');expect(t.dav.files.has('a.md')).toBe(false);await write(t,'a.md','newer pending');const c=await t.restart();await c.run('startup');expect(t.dav.files.get('a.md')?.bytes.toString()).toBe('newer pending');expect(t.git.files.get('a.md')?.bytes.toString()).toBe('newer pending')}finally{await t.close()}
+})
+test('disabling or replacing a connection during scanning prevents publication with the old binding',async()=>{
+ const t=await setup();try{await write(t,'a.md','private local edit');const original=t.git.scan.bind(t.git);t.git.scan=async()=>{const value=await original();t.bindings.splice(0,1);return value};await t.coordinator.run('manual');expect(t.dav.files.has('a.md')).toBe(false);expect(t.git.files.get('a.md')?.bytes.toString()).toBe('private local edit')}finally{await t.close()}
+})
+test('keep-both conflict resolution preserves distinct typed records with new IDs and source provenance',async()=>{
+ const t=await setup();try{const record=makeRecord('note',{title:'并发笔记',module:'learning',body:'base'});await t.repo.save({record,expectedHash:null});await t.coordinator.run('manual');const v=(await t.repo.version(record.id))!;await t.repo.save({record:{...record,body:'local'},expectedHash:v.hash});const {serializeRecord}=await import('../../src/main/archive/codec');t.dav.set(v.path,serializeRecord({...record,body:'cloud'}));await t.coordinator.run('manual');const conflict=t.coordinator.getState().conflicts.find(c=>c.path===v.path)!,local=conflict.candidates.find(c=>c.source==='local')!;await t.coordinator.resolveConflict({path:v.path,conflictId:conflict.id,nodeId:local.nodeId,keepBoth:true});await t.coordinator.run('manual');const notes=await t.repo.list({kind:'note'});expect(notes).toHaveLength(2);expect(new Set(notes.map(r=>r.id)).size).toBe(2);expect(notes.map(r=>r.body).sort()).toEqual(['cloud','local']);expect(notes.find(r=>r.id!==record.id)?.sourceRefs.some(s=>s.path===v.path)).toBe(true);expect(t.coordinator.getState().conflicts).toHaveLength(0)}finally{await t.close()}
+})
+test('without an enabled cloud connection startup never scans and copies the archive into sync objects',async()=>{
+ const t=await setup(1);try{let reads=0;const ingest=t.journal.ingest.bind(t.journal);t.journal.ingest=async(...args)=>{reads++;return ingest(...args)};t.bindings.splice(0);expect((await t.coordinator.run('startup')).phase).toBe('idle');expect(reads).toBe(0)}finally{await t.close()}
+})
+test('authentication rejection during publication prevents an extra verification request with the same credentials',async()=>{
+ const t=await setup(1);try{await write(t,'a.md','local');let scans=0;const scan=t.dav.scan.bind(t.dav),apply=t.dav.apply.bind(t.dav);t.dav.scan=async()=>{scans++;return scan()};t.dav.apply=async b=>{t.dav.unauthorized=true;return apply(b)};const state=await t.coordinator.run('manual');expect(state.endpoints.webdav?.phase).toBe('unauthorized');expect(scans).toBe(1);expect(t.dav.files.has('a.md')).toBe(false)}finally{await t.close()}
+})
+test('a manual sync requested while a conflict choice is saving waits for the whole resolution',async()=>{
+ const t=await setup();try{await write(t,'a.md','base');await t.coordinator.run('manual');await write(t,'a.md','local');t.dav.set('a.md','cloud');await t.coordinator.run('manual');const c=t.coordinator.getState().conflicts[0],chosen=c.candidates.find(v=>v.source==='webdav')!;const resolving=t.coordinator.resolveConflict({path:c.path,conflictId:c.id,nodeId:chosen.nodeId}),syncing=t.coordinator.run('manual');await resolving;expect((await syncing).phase).toBe('synced');expect(await readFile(join(t.repo.root,'a.md'),'utf8')).toBe('cloud')}finally{await t.close()}
+})

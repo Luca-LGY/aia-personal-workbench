@@ -1,0 +1,7 @@
+import { useSync,syncLabels } from '../home/SyncControls'
+import { ConflictDetail } from './ConflictDetail'
+const names:Record<string,string>={webdav:'坚果云 WebDAV',github:'GitHub'}
+export function SyncDetails({notify}:{notify:(s:string)=>void}){
+ const {state,error}=useSync();if(!state)return null
+ return<section aria-label="同步详情"><h3>同步与变更</h3>{error&&<p role="alert" className="error">{error}</p>}<p>{syncLabels[state.phase]}</p>{state.setupRequired&&<p className="helper">当前只比较云端。完成档案接入与原同步工具交接后，才开启发布。</p>}{state.publishSuspended&&<p className="helper">旧备份恢复后已暂停发布，先核对差异再继续合并。</p>}<div className="connections-grid">{Object.values(state.endpoints).map(e=><article className="connection-card" key={e.id}><h4>{names[e.id]}</h4><p>{syncLabels[e.phase]} · 待处理 {e.pending} 项</p><small>最近尝试：{e.lastAttemptAt??'—'}<br/>最近完整比较：{e.lastComparedAt??'—'}<br/>最近成功：{e.lastSuccessAt??'—'}<br/>最近上传：{e.lastUploadedAt??'—'}</small>{e.error&&<p className="error">{e.error}</p>}</article>)}</div>{state.warnings.map((w,i)=><p className="helper" key={i}>{w}</p>)}{state.conflicts.map(c=><ConflictDetail conflict={c} key={c.id} notify={notify}/>)}<details><summary>变更记录（最近 {state.changes.length} 项）</summary>{state.changes.length?<table><thead><tr><th>档案</th><th>方向</th><th>操作</th><th>比较时间</th></tr></thead><tbody>{state.changes.slice(0,100).map((c,i)=><tr key={i}><td className="file-location">{c.path}</td><td>{names[c.target]??c.target}</td><td>{c.action}</td><td>{c.at}</td></tr>)}</tbody></table>:<p>还没有档案变更。</p>}</details></section>
+}

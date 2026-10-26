@@ -2,6 +2,7 @@ import { contextBridge,ipcRenderer } from 'electron'
 import type { AiaAPI } from '../shared/api'
 const api:AiaAPI={
  runtime:()=>ipcRenderer.invoke('aia:runtime'),
+ sync:{getState:()=>ipcRenderer.invoke('sync:getState'),run:()=>ipcRenderer.invoke('sync:run'),candidate:(id,node)=>ipcRenderer.invoke('sync:candidate',id,node),resolve:p=>ipcRenderer.invoke('sync:resolve',p),onChange:listener=>{const f=()=>listener();ipcRenderer.on('sync:change',f);return()=>{ipcRenderer.removeListener('sync:change',f)}}},
  onWake:listener=>{const f=()=>listener();ipcRenderer.on('aia:wake',f);return()=>{ipcRenderer.removeListener('aia:wake',f)}},
  connections:{getState:()=>ipcRenderer.invoke('connections:getState'),configure:p=>ipcRenderer.invoke('connections:configure',p),setEnabled:(id,enabled)=>ipcRenderer.invoke('connections:setEnabled',id,enabled),test:id=>ipcRenderer.invoke('connections:test',id),inspect:id=>ipcRenderer.invoke('connections:inspect',id),export:()=>ipcRenderer.invoke('connections:export'),exportFile:()=>ipcRenderer.invoke('connections:exportFile'),onChange:listener=>{const f=()=>listener();ipcRenderer.on('connections:change',f);return()=>{ipcRenderer.removeListener('connections:change',f)}}},
  reports:{overview:date=>ipcRenderer.invoke('reports:overview',date),buildWeekly:date=>ipcRenderer.invoke('reports:buildWeekly',date),training:date=>ipcRenderer.invoke('reports:training',date),adopt:p=>ipcRenderer.invoke('reports:adopt',p)},

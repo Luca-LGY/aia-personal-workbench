@@ -57,7 +57,9 @@ export function CaptureComposer({ notify }: { notify: (s: string) => void }) {
       await window.aia.capture.commit(p)
       setLastSource(p.sourceId); setDraft(emptyDraft)
       await window.aia.drafts.save('home', JSON.stringify(emptyDraft))
-      notify('已保存到本机；云端待连接。')
+      notify('已保存到本机，正在比较云端。')
+      const sync=await window.aia.sync.run()
+      notify(sync.phase==='synced'?'已保存到本机并完成云端同步。':sync.phase==='idle'?'已保存到本机；云端待连接。':sync.phase==='setup_required'?'已保存到本机；完成档案接入后同步。':'已保存到本机；'+(sync.phase==='conflict'?'有冲突待处理。':'云端待补同步。'))
     } catch (e) { setError(errorText(e)) } finally { setBusy(false) }
   }
   async function undo() { try { await window.aia.capture.undo(lastSource); setLastSource(''); notify('已撤销这次归档，原始版本可恢复。') } catch (e) { setError(errorText(e)) } }

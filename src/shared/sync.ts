@@ -4,7 +4,7 @@ export interface RemoteEntry { path: string; hash: string; revision: string; siz
 export interface ScanResult { complete: boolean; rootExists: boolean; revision: string; entries: RemoteEntry[]; warnings?: string[];historyRewritten?:boolean }
 export type VersionState = { kind: 'present'; hash: string } | { kind: 'deleted'; priorHash: string | null }
 export interface VersionNode { id: string; path: string; parents: string[]; state: VersionState; origin: string; operation: 'put' | 'delete' | 'merge' | 'restore'; recordId?: string }
-export interface EndpointBaseline { archiveId: string; namespace: string; initialized: boolean; entries: Record<string, { nodeId: string; revision: string | null }> }
+export interface EndpointBaseline { archiveId: string; namespace: string; initialized: boolean;remoteRevision?:string; entries: Record<string, { nodeId: string; revision: string | null }> }
 export type ExpectedRevision = { type: 'absent' } | { type: 'present'; revision: string; hash: string }
 export interface RemoteChange { operationId: string; path: string; kind: 'put' | 'delete'; objectHash: string | null; nodeId: string; baseNodeId: string | null; expected: ExpectedRevision }
 export interface ChangeBatch { id: string; endpointId: EndpointId; namespace: string; scanRevision: string; changes: RemoteChange[] }
@@ -20,3 +20,8 @@ export interface SyncPlan {
   conflicts: SyncConflict[]; warnings: string[]
   requiredObjects:string[];initializedNamespaces:string[]
 }
+export type SyncReason='startup'|'manual'|'timer'|'local-change'
+export type SyncPhase='idle'|'scanning'|'planning'|'applying'|'publishing'|'verifying'|'synced'|'pending'|'conflict'|'suspended'|'setup_required'
+export interface SyncEndpointState{id:EndpointId;namespace:string;configRevision:number;phase:'idle'|'synced'|'pending'|'unauthorized'|'rate_limited'|'incomplete';lastAttemptAt:string|null;lastComparedAt:string|null;lastSuccessAt:string|null;lastUploadedAt:string|null;pending:number;blockedUntil:number;authBlockedRevision?:number;failures:number;error?:string;errorCode?:string}
+export interface SyncState{schemaVersion:1;phase:SyncPhase;lastRunAt:string|null;localSavedAt:string|null;setupRequired:boolean;publishSuspended:boolean;endpoints:Partial<Record<EndpointId,SyncEndpointState>>;conflicts:SyncConflict[];changes:{path:string;target:string;action:string;at:string}[];warnings:string[]}
+export interface ResolveConflictInput{path:string;conflictId:string;nodeId:string|null;text?:string;keepBoth?:boolean}

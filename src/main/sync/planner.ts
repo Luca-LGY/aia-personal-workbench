@@ -7,20 +7,20 @@ function entries(scan: ScanResult | null) { const result = new Map<string, Remot
 export function planSync(input: SyncInput): SyncPlan {
   const graph = { ...input.graph }, objects = { ...input.objects }, heads: Record<string, string> = {}, local = entries(input.local)
   for (const [hash, bytes] of Object.entries(objects)) if (digest(bytes) !== hash) throw Error('Corrupt sync object')
-  const endpoints = input.endpoints.map(e => ({ ...e, files: entries(e.snapshot), base: e.base?.archiveId === input.archiveId && e.base.namespace === e.namespace && !e.snapshot?.historyRewritten ? e.base : null as EndpointBaseline | null }))
+  const endpoints = input.endpoints.map(e => ({ ...e, allowInitializeEmpty:e.allowInitializeEmpty&&!e.snapshot?.historyRewritten, files: entries(e.snapshot), base: e.base?.archiveId === input.archiveId && e.base.namespace === e.namespace && !e.snapshot?.historyRewritten ? e.base : null as EndpointBaseline | null }))
   const available=new Set([...Object.keys(objects),...input.availableObjects??[]])
   const plan: SyncPlan = { id: '', archiveId: input.archiveId, checkpointRevision: input.checkpointRevision, graph, objects, heads, localChanges: [], batches: endpoints.map(e => ({ id: '', endpointId: e.id, namespace: e.namespace, scanRevision: e.snapshot?.revision ?? '', changes: [] })), acknowledgements: [], conflicts: [], warnings: [],requiredObjects:[],initializedNamespaces:endpoints.filter(e=>e.allowInitializeEmpty&&complete(e.snapshot)&&e.files.size===0).map(e=>e.namespace) }
   const paths = new Set([...local.keys(), ...Object.keys(input.localHeads), ...endpoints.flatMap(e => [...e.files.keys(), ...Object.keys(e.base?.entries ?? {})])])
   for (const e of endpoints) if (!complete(e.snapshot)) plan.warnings.push(e.id + '扫描未知或不完整，禁用本轮发布和基线推进')
   const deletedIds = new Set(input.deletedRecordIds ?? [])
-  function observe(path: string, row: RemoteEntry | undefined, baseId: string | undefined, available: boolean, source: string, revision: string, namespace?: string): { candidate?: Candidate; resurrection: boolean } {
+  function observe(path: string, row: RemoteEntry | undefined, baseId: string | undefined, available: boolean, source: string, namespace?: string): { candidate?: Candidate; resurrection: boolean } {
     const base = baseId ? graph[baseId] : undefined
     if (!row && !available) return { resurrection: false }
     if (!row && !base) return { resurrection: false }
     if (base && contentHash(base) === (row?.hash ?? null)) return { candidate: { nodeId: base.id, source, namespace }, resurrection: false }
     const resurrection = !!row && !row.restored && (base?.state.kind === 'deleted' || (!!row.recordId && deletedIds.has(row.recordId)))
     const state = row ? { kind: 'present' as const, hash: row.hash } : { kind: 'deleted' as const, priorHash: base ? contentHash(base) : null }
-    const node = createVersion(path, state, base ? [base.id] : [], namespace ?? source, revision, { recordId: row?.recordId ?? base?.recordId, operation: row?.restored ? 'restore' : undefined })
+    const node = createVersion(path, state, base ? [base.id] : [], namespace ?? source, row?.revision ?? 'deleted:' + baseId, { recordId: row?.recordId ?? base?.recordId, operation: row?.restored ? 'restore' : undefined })
     graph[node.id] = node
     return { candidate: { nodeId: node.id, source, namespace }, resurrection }
   }
@@ -29,7 +29,7 @@ export function planSync(input: SyncInput): SyncPlan {
     plan.conflicts.push(value)
   }
   for (const path of [...paths].sort()) {
-    const observations = [observe(path, local.get(path), input.localHeads[path], complete(input.local), 'local', input.local.revision), ...endpoints.map(e => observe(path, e.files.get(path), e.base?.entries[path]?.nodeId, complete(e.snapshot), e.id, e.snapshot?.revision ?? 'unknown', e.namespace))]
+    const observations = [observe(path, local.get(path), input.localHeads[path], complete(input.local), 'local'), ...endpoints.map(e => observe(path, e.files.get(path), e.base?.entries[path]?.nodeId, complete(e.snapshot), e.id, e.namespace))]
     const candidates = observations.flatMap(o => o.candidate ? [o.candidate] : [])
     if (!candidates.length) continue
     if (observations.some(o => o.resurrection)) { conflict(path, '旧副本遇到删除历史；请显式恢复或保留删除', candidates); continue }

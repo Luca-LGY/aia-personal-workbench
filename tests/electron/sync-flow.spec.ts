@@ -1,0 +1,19 @@
+import { test,expect } from '@playwright/test'
+import { launchTestApp } from '../helpers/electron-app'
+import { fakeWebdav } from '../helpers/fake-webdav'
+import { fakeGithub } from '../helpers/fake-github'
+import { serializeRecord } from '../../src/main/archive/codec'
+test('home archive-and-sync publishes real files, external GitHub edits return and a conflict can be compared and chosen',async()=>{
+ const dav=await fakeWebdav(),git=await fakeGithub(),t=await launchTestApp({githubAPI:git.url,syncReady:true});try{
+  await t.page.evaluate(async c=>{await window.aia.connections.configure({id:'webdav',url:c.dav,username:'synthetic',secret:'SYNTHETIC_ONLY'});await window.aia.connections.test('webdav');await window.aia.connections.configure({id:'github',owner:c.owner,repo:c.repo,branch:'main',secret:'SYNTHETIC_ONLY'});await window.aia.connections.test('github')},{dav:dav.url,owner:git.owner,repo:git.repo})
+  await t.page.getByRole('button',{name:'立即同步',exact:true}).click();await expect(t.page.getByRole('status',{name:'档案同步状态'})).toContainText('已同步')
+  await t.page.getByLabel('随手记内容',{exact:true}).fill('今天跑步20分钟');await t.page.getByRole('button',{name:'归档并同步',exact:true}).click();await expect(t.page.getByRole('status',{name:'操作提示'})).toContainText('已保存到本机并完成云端同步');await expect(t.page.getByRole('status',{name:'档案同步状态'})).toContainText('已同步')
+  const activity=(await t.page.evaluate(()=>window.aia.records.list({kind:'activity'})))[0];expect(git.files().get(activity.path)?.toString()).toContain('20');expect(dav.files.get('/dav/'+activity.path)?.toString()).toContain('20')
+  const external={...activity.record,title:'云端修改后的运动',body:'外部GitHub写入的独特正文',updatedAt:'2026-10-26T02:00:00Z'};git.edit(activity.path,serializeRecord(external));await t.page.getByRole('button',{name:'立即同步',exact:true}).click();await expect(t.page.getByRole('button',{name:'打开档案：云端修改后的运动',exact:true})).toBeVisible();expect((await t.page.evaluate(()=>window.aia.search.query({query:'外部GitHub写入的独特正文'}))).items[0].recordId).toBe(activity.record.id)
+  const local=(await t.page.evaluate(id=>window.aia.records.get(id),activity.record.id))!;await t.page.evaluate(v=>window.aia.records.save({record:{...v.record,body:'本机冲突候选'},expectedHash:v.hash}),local);git.edit(activity.path,serializeRecord({...external,body:'云端冲突候选'}));await t.page.getByRole('button',{name:'立即同步',exact:true}).click();await expect(t.page.getByRole('status',{name:'档案同步状态'})).toContainText('冲突')
+  await t.page.getByRole('button',{name:'查看变更',exact:true}).click();const conflict=t.page.getByRole('region',{name:'冲突：'+activity.path});await expect(conflict).toContainText('本机冲突候选');await expect(conflict).toContainText('云端冲突候选');await conflict.getByRole('button',{name:'采用 GitHub 版本',exact:true}).click();await t.page.getByRole('button',{name:'立即同步',exact:true}).click();await expect(t.page.getByRole('status',{name:'档案同步状态'})).toContainText('已同步');expect((await t.page.evaluate(id=>window.aia.records.get(id),activity.record.id))?.record.body).toBe('云端冲突候选')
+ }finally{await t.close();await dav.close();await git.close()}
+})
+test('closing the window keeps the tray process alive and explicit quit persists state for restart',async()=>{
+ const t=await launchTestApp({background:true});try{await t.app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].close());expect(await t.app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].isVisible())).toBe(false);await t.app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].show());await expect(t.page.getByRole('navigation')).toBeVisible();await expect.poll(()=>t.page.evaluate(async()=>(await window.aia.sync.getState()).phase)).toBe('idle')}finally{await t.close()}
+})

@@ -28,7 +28,7 @@ export class WebdavAdapter implements EndpointAdapter {
   private url(path: string) { this.path(path, true); return new URL(this.base.href + path.split('/').map(encodeURIComponent).join('/')) }
   private relative(url: URL) { if (url.origin !== this.base.origin || url.username || url.password || /%2f|%5c/i.test(url.pathname)) throw new SyncError('incomplete', '云端列表链接超出档案范围'); const root = decodeURIComponent(this.base.pathname), decoded = decodeURIComponent(url.pathname); if (!decoded.startsWith(root)) throw new SyncError('incomplete', '云端链接越过档案根目录'); return this.path(decoded.slice(root.length), true) }
   private async request(url: URL, method: string, headers: Record<string, string> = {}, body?: () => RequestOptions['body']) {
-    this.relative(url); await this.c.budget.reserve(); if (!this.authorization) this.authorization = 'Basic ' + Buffer.from(this.c.username + ':' + await this.c.getSecret()).toString('base64')
+    this.relative(url); await this.c.budget.reserve(); this.authorization = 'Basic ' + Buffer.from(this.c.username + ':' + await this.c.getSecret()).toString('base64')
     let stream: ReadStream | undefined
     try {
       const content = body?.(); if (content && typeof content === 'object' && 'destroy' in content) stream = content as unknown as ReadStream

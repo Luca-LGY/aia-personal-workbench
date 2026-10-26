@@ -20,7 +20,7 @@ test('meal facts and future plans use the captured identity, allow edits, and su
     await t.page.getByLabel('餐次').selectOption('breakfast')
     await t.page.getByLabel('饮食描述').fill('明天的早餐安排')
     await t.page.getByRole('button', { name: '保存饮食', exact: true }).click()
-    await expect(t.page.getByRole('status')).toContainText('饮食已保存')
+    await expect(t.page.getByRole('status',{name:'操作提示'})).toContainText('饮食已保存')
     await expect(t.page.getByRole('article').filter({ hasText: '明天的早餐安排' })).toBeVisible()
     await expect(t.page.getByText('计划饮食', { exact: true })).toBeVisible()
     await expect(t.page.getByText(/热量|卡路里|千卡/)).toHaveCount(0)

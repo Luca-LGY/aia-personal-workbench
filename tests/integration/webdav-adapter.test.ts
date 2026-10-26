@@ -32,6 +32,9 @@ test('recursive Depth:1 and next-link pages include Unicode, spaces, hash and em
     expect(t.server.maxConcurrent).toBe(1)
   } finally { await t.close() }
 })
+test('revoking a saved connection after scan stops cached-authorization requests before any upload',async()=>{
+ const t=await setup();try{let allowed=true;const adapter=new WebdavAdapter({url:t.server.url,username:'synthetic',getSecret:async()=>{if(!allowed)throw Error('connection disabled');return'SYNTHETIC_ONLY'},allowTestHTTP:true,stateRoot:t.root,objectStore:t.store,budget:new RequestBudget(t.root,t.server.url),capabilities});const scan=await adapter.scan(),hash=digest('must stay local');await t.store.putObject(hash,Buffer.from('must stay local'));allowed=false;const before=t.server.requests.length;try{await adapter.apply(batch({...t,adapter},scan,'private.md',hash))}catch{/* revoked requests can reject the batch */}expect(t.server.requests).toHaveLength(before);expect(t.server.files.has('/dav/private.md')).toBe(false)}finally{await t.close()}
+})
 test('conditional PUT, create-only and DELETE reject racing edits and never overwrite them', async () => {
   const t = await setup(); try {
     t.server.seed('a.md', 'old'); const scan = await t.adapter.scan(); const desired = digest('new'); await t.store.putObject(desired, Buffer.from('new'))

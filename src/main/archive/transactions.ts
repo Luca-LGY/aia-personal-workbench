@@ -33,4 +33,5 @@ export class TransactionStore{
  private async apply(e:TxEntry){const p=await safePath(this.root,e.path),prior=await readMaybe(p),current=prior?hashBytes(prior):null;if(current===e.after)return;if(current!==e.before)throw Error('CONFLICT during recovery: '+e.path);if(e.after===null)await unlink(p);else await atomicWrite(p,await this.object(e.after))}
  async recover(){await mkdir(this.dir(),{recursive:true});const recovered:string[]=[],conflicts:string[]=[];for(const name of (await readdir(this.dir())).sort()){if(!name.endsWith('.json'))continue;const tx=JSON.parse(await readFile(join(this.dir(),name),'utf8')) as Tx;if(tx.status!=='prepared')continue;try{for(const e of tx.entries)await this.apply(e);tx.status='committed';recovered.push(tx.id)}catch(e){if(!(e instanceof Error)||!e.message.startsWith('CONFLICT'))throw e;tx.status='conflict';conflicts.push(tx.id)}await this.saveTx(tx)}return{recovered,conflicts}}
  async idle(){await this.tail}
+ exclusive<T>(read:()=>Promise<T>){const work=this.tail.then(read);this.tail=work.catch(()=>{});return work}
 }

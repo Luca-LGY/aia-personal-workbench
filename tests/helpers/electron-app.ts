@@ -2,11 +2,13 @@ import { _electron as electron, type ElectronApplication } from '@playwright/tes
 import { mkdtemp, mkdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-export async function launchTestApp(options: { archiveRoot?:string; stateRoot?:string; now?:string; packaged?:string;captureReplyDelayMs?:number;githubAPI?:string } = {}) {
+export async function launchTestApp(options: { archiveRoot?:string; stateRoot?:string; now?:string; packaged?:string;captureReplyDelayMs?:number;githubAPI?:string;syncReady?:boolean;background?:boolean } = {}) {
   const temp = await mkdtemp(join(tmpdir(),'aia-test-'))
   const archiveRoot=options.archiveRoot??join(temp,'archive'), stateRoot=options.stateRoot??join(temp,'state')
   await mkdir(archiveRoot,{recursive:true}); await mkdir(stateRoot,{recursive:true})
   const env:Record<string,string>={...Object.fromEntries(Object.entries(process.env).filter((e):e is [string,string]=>e[1]!==undefined)),AIA_TEST_MODE:'1',AIA_ARCHIVE_ROOT:archiveRoot,AIA_STATE_ROOT:stateRoot,AIA_NOW:options.now??'2026-10-25T10:00:00+08:00'}
+  if(options.syncReady)env.AIA_TEST_SYNC_READY='1'
+  if(options.background)env.AIA_TEST_BACKGROUND='1'
   if(options.githubAPI)env.AIA_TEST_GITHUB_API_BASE=options.githubAPI
   delete env.ELECTRON_RUN_AS_NODE
   if(options.captureReplyDelayMs)env.AIA_TEST_CAPTURE_REPLY_DELAY=String(options.captureReplyDelayMs)

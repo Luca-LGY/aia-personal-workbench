@@ -106,3 +106,10 @@ test('a rewritten GitHub history cannot inherit the old baseline and silently re
  const input=setup({'a.md':'baseline'});change(input,'github',{'a.md':'rewritten branch'});input.endpoints[1].snapshot!.historyRewritten=true
  const plan=planSync(input);expect(plan.conflicts).toHaveLength(1);expect(plan.localChanges).toHaveLength(0);expect(plan.batches.every(b=>!b.changes.length)).toBe(true)
 })
+test('rewriting GitHub to an empty tree cannot reuse first-time empty initialization permission',()=>{
+ const input=setup({'a.md':'baseline'});change(input,'github',{});input.endpoints[1].snapshot!.historyRewritten=true;input.endpoints[1].allowInitializeEmpty=true
+ const plan=planSync(input);expect(plan.batches[1].changes).toHaveLength(0);expect(plan.conflicts).toHaveLength(1)
+})
+test('an unrelated file change does not invalidate unchanged conflict candidates',()=>{
+ const input=setup({'a.md':'base'});change(input,'local',{'a.md':'local'});change(input,'github',{'a.md':'cloud'});const first=planSync(input);input.graph=first.graph;change(input,'local',{'a.md':'local','unrelated.md':'new'});input.local.revision='only-unrelated-file-changed';const second=planSync(input);expect(second.conflicts.find(c=>c.path==='a.md')?.id).toBe(first.conflicts.find(c=>c.path==='a.md')?.id)
+})

@@ -11,7 +11,7 @@ import { SyncError } from '../errors'
 import { RequestBudget } from '../request-budget'
 import { responseChunks,type SyncObjectStore } from '../streams'
 import type { Transport,RequestOptions } from '../transport'
-interface Options{owner:string;repo:string;branch:string;getSecret():Promise<string>;stateRoot:string;objectStore:SyncObjectStore;budget:RequestBudget;apiBase?:string;allowTestHTTP?:boolean;transport?:Transport}
+interface Options{owner:string;repo:string;branch:string;getSecret():Promise<string>;stateRoot:string;objectStore:SyncObjectStore;budget:RequestBudget;apiBase?:string;allowTestHTTP?:boolean;transport?:Transport;knownHead?:()=>Promise<string|undefined>}
 interface TreeRow{path:string;type:string;mode:string;sha:string;size?:number}
 interface Commit{sha:string;tree:{sha:string};parents:{sha:string}[]}
 interface Pending{fingerprint:string;parent:string;tree:string;commitBody:Record<string,unknown>;commit?:string;published?:boolean}
@@ -61,7 +61,7 @@ export class GithubAdapter implements EndpointAdapter{
   const seen=new Set<string>();for(const row of rows){if(row.type==='tree')continue;try{this.path(row.path);if(seen.has(row.path))throw new SyncError('incomplete','重复路径');seen.add(row.path);if(row.type!=='blob'||!['100644','100755'].includes(row.mode))throw new SyncError('unsupported','符号链接或子模块尚不支持');entries.push(await this.blob(row));modes[row.path]=row.mode}catch(e){if(e instanceof SyncError&&['unsupported','incomplete'].includes(e.code))warnings.push(row.path+'：'+e.message);else throw e}}
   return {scan:{complete:!warnings.length,rootExists:true,revision:head,entries,warnings} as ScanResult,tree:commit.tree.sha,modes}
  }
- scan(){return this.queue(async()=>{await this.load();const head=await this.head(),v=await this.snapshot(head);if(this.lastHead&&this.lastHead!==head&&!await this.contains(this.lastHead,head)){v.scan.historyRewritten=true;v.scan.warnings!.push('GitHub 分支历史被改写，旧基线不能作为共同祖先')}
+ scan(){return this.queue(async()=>{await this.load();const head=await this.head(),v=await this.snapshot(head),known=await this.c.knownHead?.()??this.lastHead;if(known&&known!==head&&!await this.contains(known,head)){v.scan.historyRewritten=true;v.scan.warnings!.push('GitHub 分支历史被改写，旧基线不能作为共同祖先')}
   this.lastComplete=v.scan.complete;if(v.scan.complete)this.lastHead=head;await this.persist();return v.scan})}
  read(path:string,revision:string){return this.queue(async()=>{this.path(path);await this.load();const cached=this.cache[revision];if(!cached||!await this.c.objectStore.hasObject(cached.hash))throw new SyncError('not_found','请先完整扫描该不可变 blob');return this.c.objectStore.object(cached.hash)})}
  private async upload(hash:string){

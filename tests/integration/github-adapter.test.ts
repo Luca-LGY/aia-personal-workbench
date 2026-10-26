@@ -55,3 +55,6 @@ test('truncated direct trees, oversized files, LFS pointers and symlinks remain 
 test('write permission failure and a rewritten history never become successful publication',async()=>{
  const t=await setup();try{const original=t.server.head;t.server.edit('a.md','base');const scan=await t.adapter.scan(),b=await batch(t,scan,{'a.md':'local'});t.server.options.writable=false;expect((await t.adapter.apply(b)).complete).toBe(false);expect(t.server.commitPosts).toBe(0);t.server.options.writable=true;t.server.rewrite(original);const next=await t.adapter.scan();expect(next.historyRewritten).toBe(true);expect((await t.adapter.apply(b)).complete).toBe(false)}finally{await t.close()}
 })
+test('durable baseline detects rewritten Git history repeatedly after the scan cache is recreated',async()=>{
+ const t=await setup();try{const initial=t.server.head;t.server.edit('a.md','baseline');const known=t.server.head;await t.adapter.scan();t.server.rewrite(initial);await rm(join(t.root,'cache/github'),{recursive:true,force:true});const adapter=new GithubAdapter({...t.config,knownHead:async()=>known});expect((await adapter.scan()).historyRewritten).toBe(true);expect((await adapter.scan()).historyRewritten).toBe(true)}finally{await t.close()}
+})

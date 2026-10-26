@@ -1,0 +1,1 @@
+declare module 'proper-lockfile'{const lockfile:{lock(path:string,options:{realpath?:boolean;stale?:number;update?:number;retries?:number|{retries:number;minTimeout:number;maxTimeout:number};lockfilePath?:string;onCompromised?:(error:Error)=>void}):Promise<()=>Promise<void>>};export default lockfile}

@@ -18,7 +18,7 @@ test('custom subject, note, questions and materials connect to plan and search w
     await expect(t.page.getByText('时长未记录', { exact: true })).toBeVisible()
     const card = t.page.getByRole('article', { name: '学习笔记：稳定性判据笔记' })
     await card.getByRole('button', { name: '加入今日计划', exact: true }).click()
-    await expect(t.page.getByRole('status')).toContainText('已加入今日计划')
+    await expect(t.page.getByRole('status',{name:'操作提示'})).toContainText('已加入今日计划')
     const [note] = await t.page.evaluate(() => window.aia.records.list({ kind: 'note' }))
     expect(note.record.data.durationMin).toBeNull()
     const [subject] = await t.page.evaluate(() => window.aia.records.list({ kind: 'subject' }))

@@ -96,6 +96,8 @@ export class SyncJournal {
   supersede(runId: string) { return this.queue(async () => this.update(next => { const run = next.runs[runId]; if (run) run.phase = 'superseded' })) }
   setBaseline(baseline: EndpointBaseline) { return this.queue(async () => this.update(next => { if (baseline.archiveId !== this.archiveId) throw Error('Wrong archive baseline'); next.baselines[baseline.namespace] = structuredClone(baseline) })) }
   suspendForRestore(value = true) { return this.queue(async () => this.update(next => { next.publishSuspendedForRestore = value })) }
+  replaceConflicts(conflicts:SyncConflict[],complete:boolean){return this.queue(async()=>this.update(next=>{if(complete)next.conflicts={};for(const c of conflicts)next.conflicts[c.path]=structuredClone(c)}))}
+  clearConflict(path:string,id:string){return this.queue(async()=>this.update(next=>{if(next.conflicts[path]?.id!==id)throw Error('冲突已变化，请重新比较');delete next.conflicts[path]}))}
   recover() { return Object.values(this.getState().runs).filter(r => r.phase === 'prepared' || r.phase === 'local_applied') }
   idle() { return this.tail }
 }

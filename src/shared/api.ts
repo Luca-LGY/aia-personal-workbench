@@ -6,11 +6,13 @@ import type { ScheduleInput,PlanStatus } from './plans'
 import type { GarminOverview,GarminActivity,GarminWorkout } from './garmin'
 import type { HomeOverview,AdvicePreview,AdoptAdvice } from './reports'
 import type { ConfigureConnection,ConnectionState,EndpointId,CloudInspection } from './connections'
+import type { SyncState,ResolveConflictInput } from './sync'
 export interface RuntimeInfo {archiveRoot:string;stateRoot:string;sqliteReady:boolean;now:string}
 export interface RecordView {record:RecordEnvelope;path:string;hash:string}
 export interface AiaAPI {
  runtime():Promise<RuntimeInfo>
  onWake(listener:()=>void):()=>void
+ sync:{getState():Promise<SyncState>;run():Promise<SyncState>;candidate(conflictId:string,nodeId:string):Promise<{text:string|null;binary:boolean;size:number}>;resolve(input:ResolveConflictInput):Promise<{nodeId:string}>;onChange(listener:()=>void):()=>void}
  records:{list(filter?:RecordFilter):Promise<RecordView[]>;get(id:string):Promise<RecordView|null>;save(input:SaveRecord):Promise<RecordEnvelope>;remove(id:string,hash:string):Promise<DeletionReceipt>;restore(id:string):Promise<RecordEnvelope|null>}
  drafts:{get(key:string):Promise<string>;save(key:string,text:string):Promise<void>}
  attachments:{choose():Promise<AttachmentRef[]>;resolve(id:string):Promise<AttachmentRef|null>;open(id:string):Promise<void>}
